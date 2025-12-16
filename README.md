@@ -1,5 +1,5 @@
 # Universal-Model-Saver
-A script that saves models into rbxmx or rbxm, doesn’t really matter though.
+A script made with lua, & json. Made for decompliation of Models for your type!
 
 ## LIST OF SAVING TYPES
 - Normal, decomps the model then saves it to the folder as a rbxm/rbxmx
