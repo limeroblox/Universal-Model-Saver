@@ -5,7 +5,7 @@ A professional Lua-based tool for model decomposition and preservation across mu
 ## Features
 
 ### Export Types
-- **Standard Export** – Decomposes models and saves them as RBXM/RBXMx files to local storage
+- **Standard Export** – Decomposes models and saves them as RBXM/RBXMx files to local storage (Workspace/Universal-Model-Saver/Model.rbxm or rbxmx)
 - **Webhook Integration** (Experimental) – Uploads exports to designated webhooks using URL identifiers
 - **Validation Testing** – Decomposes the local player's avatar to verify core functionality
 
