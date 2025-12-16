@@ -14,4 +14,4 @@ A script that saves models into rbxmx or rbxm, doesn’t really matter though.
   - Nightbound mode; Saves a selected nightbound, with the saving types included. This is for blackout revival zombies game mode.
 
 ### Credits:
-***[Universal Saveinstance](https://github.com/luau/UniversalSynSaveInstance)***
+***[Universal Syn Saveinstance](https://github.com/luau/UniversalSynSaveInstance)***
