@@ -1,17 +1,35 @@
-# Universal-Model-Saver
-A script made with lua, & json. Made for decompliation of Models for your type!
+# Universal Model Saver
 
-## LIST OF SAVING TYPES
-- Normal, decomps the model then saves it to the folder as a rbxm/rbxmx
-- (In Webhook Saving Tab) Upload through webhook after saving (Experimental & You need your webhook url id)
-- (In Test Tab) Same as normal but it decomps the local player's avatar to ensure the functions work as inteneded
+A professional Lua-based tool for model decomposition and preservation across multiple Roblox project workflows. The system supports modular export formats and flexible deployment configurations.
 
-## SETTINGS
+## Features
 
-- Script Decompilation, ONLY SAVES LOCAL SCRIPTS AND MODULE SCRIPTS, FILTERING ENABLED BASIC SCRIPTS CANNOT BE SAVED.
-- Modes, with these features;
-  - Normal mode; Basic Model Saving
-  - Nightbound mode; Saves a selected nightbound, with the saving types included. This is for blackout revival zombies game mode.
+### Export Types
+- **Standard Export** – Decomposes models and saves them as RBXM/RBXMx files to local storage
+- **Webhook Integration** (Experimental) – Uploads exports to designated webhooks using URL identifiers
+- **Validation Testing** – Decomposes the local player's avatar to verify core functionality
 
-### Credits:
-***[Universal Syn Saveinstance](https://github.com/luau/UniversalSynSaveInstance)***
+## Configuration
+
+### Decompilation Settings
+- **Script Preservation** – Extracts LocalScripts and ModuleScripts only
+- **Security Filtering** – Basic Script objects are excluded from export for compliance with platform policies
+
+### Operational Modes
+- **Standard Mode** – General-purpose model preservation
+- **Nightbound Mode** – Specialized export for Nightbound entities with compatibility for Blackout Revival Zombies gameplay systems
+
+## Technical Specifications
+- **Language**: Lua 5.1+ with JSON serialization support
+- **Output Formats**: RBXM, RBXMx
+- **Dependencies**: Roblox Studio API, HTTP services for webhook functionality
+
+## Compatibility Notice
+Webhook functionality requires proper URL configuration and network permissions. Experimental features may require additional security review for production deployment.
+
+## Acknowledgments
+Architectural inspiration from [Universal Syn Saveinstance](https://github.com/luau/UniversalSynSaveInstance)
+
+---
+
+*For implementation details and contribution guidelines, refer to the source repository documentation.*
