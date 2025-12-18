@@ -1,9 +1,10 @@
-local UniversalModelSaver = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Rayfeild = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local Window = UniversalModelSaver:CreateWindow({
+local Window = Rayfeild:CreateWindow({
     Name = "Universal Model Saver",
     LoadingTitle = "Loading Assets",
     LoadingSubtitle = "made with <3 by Haxel",
+    ShowText = "Universal Model Saver",
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "Model Saver Folder",
