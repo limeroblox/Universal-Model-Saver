@@ -7,7 +7,7 @@ A Lua-based tool for model decomposition and preservation across multiple Roblox
 ### Export Types
 - **Standard Export** – Decomposes models and saves them as RBXM/RBXMx files to local storage (Workspace/Universal-Model-Saver/Model.rbxm or rbxmx)
 - **Webhook Integration** (Experimental) – Uploads exports to designated webhooks using URL identifiers (Yes, Discord Webhooks)
-- **Validation Testing** – Decomposes the local player's avatar to verify core functionality
+- **Validation Testing** – Decomposes the local player's avatar to verify core functionality, deletes the file shortly after to save space
 
 ## Configuration
 
