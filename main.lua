@@ -1,4 +1,4 @@
-local function buildWebhookFormat(data)
+local function buildWebhookFormat(data) -- Module Function, Works I guess :P
     return {
         username = "Universal Model Saver",
         embeds = {{
