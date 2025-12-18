@@ -2,7 +2,7 @@ local webhookformat = { -- Stores the webhook formating
   username = "Universal Model Saver",
     embeds = {{
         title = "Export Complete",
-        color = "0x00FF00",
+        color = 0x00FF00,
         fields = {
             { name = "File", value = "`" .. fileName .. "`", inline = true },
             { name = "Size", value = fileSizeKB .. " KB", inline = true },
