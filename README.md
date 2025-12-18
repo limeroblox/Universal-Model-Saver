@@ -1,8 +1,7 @@
 # Universal Model Saver
 
 > [!WARNING]
-> - This Project is In Development, Expect Bugs and Issues When Using This Tool                                                            
-> - I Strongly Reccomend To Use This Tool With A Alternative Account
+> - This Project is In Development, Expect Bugs and Issues When Using This Tool
 
 A Lua-powered instrument for model dissection and conservation during the workflow of various Roblox projects. It comes with different types of exports and has the configurations for the deployment to be as flexible as required.
 
