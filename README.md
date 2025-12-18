@@ -8,7 +8,7 @@ A Lua-powered instrument for model dissection and conservation during the workfl
 ## Features
 
 ### Export Types
-- **Standard Export** – Breaks down the models and saves them as RBXM/RBXMx files in the local storage (Workspace/Universal-Model-Saver/Model.rbxm or rbxmx).
+- **Standard Export** – Breaks down the models and saves them as RBXM/RBXMx files in the local storage (Workspace/Universal-Model-Saver/Model.rbxm or rbxmx), Documentry: https://github.com/RobloxAPI/spec/
 - **Webhook Integration** (Experimental) – Sends uploads to webhooks with the help of designated URL identifiers (e.g., Discord Webhooks).
 - **Validation Testing** – Takes apart the local player's avatar to check the fundamental operation and deletes the file just after to avoid space wastage.
 
