@@ -1,6 +1,6 @@
 # Universal Model Saver
 
-A professional Lua-based tool for model decomposition and preservation across multiple Roblox project workflows. The system supports modular export formats and flexible deployment configurations.
+A Lua-based tool for model decomposition and preservation across multiple Roblox project workflows. The system supports modular export formats and flexible deployment configurations.
 
 ## Features
 
