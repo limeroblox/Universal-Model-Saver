@@ -22,7 +22,7 @@ A Lua-based tool for model decomposition and preservation across multiple Roblox
 ## Technical Specifications
 - **Language**: Lua 5.1+ with JSON serialization support
 - **Output Formats**: RBXM, RBXMx
-- **Dependencies**: Roblox Studio API, HTTP services for webhook functionality
+- **Dependencies**: Roblox Exploit & Studio API , HTTP services for webhook functionality
 
 ## Compatibility Notice
 Webhook functionality requires proper URL configuration and network permissions. Experimental features may require additional security review for production deployment.
