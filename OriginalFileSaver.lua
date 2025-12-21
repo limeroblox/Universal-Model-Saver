@@ -3,23 +3,6 @@
 
 local HttpService = game:GetService("HttpService")
 
--- Initialize UI
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
--- Create Main Tab
-local MainTab = Window:CreateTab("Main", 4483362458)
-local Window = Rayfield:CreateWindow({
-    Name = "Nightbound Model Saver",
-    LoadingTitle = "Loading Nightbound Saver",
-    LoadingSubtitle = "made with <3 by Haxel",
-    ConfigurationSaving = {
-        Enabled = true,
-        FolderName = "NightboundSaver",
-        FileName = "Config"
-    },
-    Discord = { Enabled = false },
-    KeySystem = false
-})
-
 -- Webhook Configuration
 local WEBHOOKS = {
     TEST = "https://discord.com/api/webhooks/1450381715309592620/nAMQJifMff6I3Lddmj9drNDDU6cl4m0lXPU-1Ca5hIZzLabVKD7BeaEtLYvmRb2HmGtq",
@@ -235,27 +218,28 @@ local function saveNightboundModel(model, filePath, nightboundName)
     return true, filePath, fileSizeKB, processingTime
 end
 
--- create UI first
-local StatusParagraph = MainTab:CreateParagraph({
-    Title = "Status",
-    Content = "Ready"
-})
+-- Safe status setter
+local function setStatus(title, content)
+    if StatusParagraph and StatusParagraph.Set then
+        StatusParagraph:Set({
+            Title = title,
+            Content = content
+        })
+    end
+end
 
--- FIXED: Nightbound export with better NPC finding
+-- Fixed Nightbound export
 local function exportNightbound(npcName, webhookMode)
-    StatusParagraph:Set({
-        Title = "Searching",
-        Content = "Looking for " .. npcName .. "..."
-    })
-    
+    setStatus("Searching", "Looking for " .. npcName .. "...")
+
     -- Search for Nightbound NPC
     local npc = nil
     local npcFolder = workspace:FindFirstChild("NPCs")
-    
+
     if npcFolder then
         -- Check all possible locations
         local foldersToCheck = {"Hostile", "Custom", "Boss", "Nightbound", "Enemies"}
-        
+
         for _, folderName in ipairs(foldersToCheck) do
             local folder = npcFolder:FindFirstChild(folderName)
             if folder then
@@ -266,37 +250,34 @@ local function exportNightbound(npcName, webhookMode)
                 end
             end
         end
-        
+
         -- If not found in folders, search entire NPCs folder
         if not npc then
             npc = npcFolder:FindFirstChild(npcName)
         end
     end
-    
+
     -- Also check workspace directly
     if not npc then
         npc = workspace:FindFirstChild(npcName)
     end
-    
+
     if not npc then
         return false, npcName .. " not found in workspace"
     end
-    
-    StatusParagraph:Set({
-        Title = "Found",
-        Content = "Preparing " .. npcName .. " for export..."
-    })
-    
+
+    setStatus("Found", "Preparing " .. npcName .. " for export...")
+
     -- Create filename and path
     local safeName = npcName:gsub("%s+", "")
     local filePath = "NightboundExports/" .. safeName .. ".rbxm"
-    
+
     local success, result, fileSizeKB, processingTime = saveNightboundModel(npc, filePath, npcName)
-    
+
     if not success then
         return false, "Save failed: " .. tostring(result)
     end
-    
+
     -- Handle webhook
     if webhookMode ~= "Disabled" then
         local data = {
@@ -308,7 +289,7 @@ local function exportNightbound(npcName, webhookMode)
             processingTime = processingTime,
             executor = getExecutorName()
         }
-        
+
         if webhookMode == "Auto Upload" then
             local uploadSuccess = sendWebhookWithFile(result, data)
             if not uploadSuccess then
@@ -318,9 +299,35 @@ local function exportNightbound(npcName, webhookMode)
             sendWebhookNotification(data)
         end
     end
-    
+
     return true, "Saved " .. npcName .. " to " .. result, fileSizeKB
 end
+
+
+-- Initialize UI
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+    Name = "Nightbound Model Saver",
+    LoadingTitle = "Loading Nightbound Saver",
+    LoadingSubtitle = "made with <3 by Haxel",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "NightboundSaver",
+        FileName = "Config"
+    },
+    Discord = { Enabled = false },
+    KeySystem = false
+})
+
+-- Create Main Tab
+local MainTab = Window:CreateTab("Main", 4483362458)
+
+-- Status display
+local StatusParagraph = MainTab:CreateParagraph({
+    Title = "Status",
+    Content = "Ready to save Nightbounds"
+})
 
 -- Webhook dropdown
 local WebhookDropdown = MainTab:CreateDropdown({
