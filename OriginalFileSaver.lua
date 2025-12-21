@@ -277,25 +277,11 @@ local function nightboundExport(npcName, webhookMode)
     return true, filePath, fileSizeKB
 end
 
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-
-local window = Rayfield:CreateWindow({
-    Name = "Universal Model Saver",
-    LoadingTitle = "Loading Assets",
-    LoadingSubtitle = "made with <3 by Haxel",
-    ShowText = "Universal Model Saver",
-    ConfigurationSaving = {
-        Enabled = true,
-        FolderName = "Model Saver Folder",
-        FileName = "Config"
-    },
-    Discord = { Enabled = false },
-    KeySystem = false
-})
+loadstring(game:HttpGet('https://raw.githubusercontent.com/limeroblox/Universal-Model-Saver/refs/heads/main/Ui/Main.lua'))()
 
 -- Create tabs directly (no functions needed)
-local MainTab = window:CreateTab("Main", 4483362458)
-local SettingsTab = window:CreateTab("Settings", 4483362458)
+local MainTab = Window:CreateTab("Main", 4483362458)
+local SettingsTab = Window:CreateTab("Settings", 4483362458)
 
 -- Status display
 local StatusParagraph = MainTab:CreateParagraph({
