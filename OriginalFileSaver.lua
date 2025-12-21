@@ -323,9 +323,21 @@ local function nightboundExport(npcName, webhookMode)
     return true, "Nightbound export completed: " .. filePath, fileSizeKB
 end
 
--- Now we'll create the UI elements that connect to your loaded Rayfield UI
--- Load the UI first
-loadstring(game:HttpGet("https://raw.githubusercontent.com/limeroblox/Universal-Model-Saver/refs/heads/main/Ui/Main.lua"))()
+local Rayfeild = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfeild:CreateWindow({
+    Name = "Universal Model Saver",
+    LoadingTitle = "Loading Assets",
+    LoadingSubtitle = "made with <3 by Haxel",
+    ShowText = "Universal Model Saver",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "Model Saver Folder",
+        FileName = "Config"
+    },
+    Discord = { Enabled = false },
+    KeySystem = false
+})
 
 -- Create tabs and elements
 local MainTab = Window:CreateTab("Main", 4483362458)
