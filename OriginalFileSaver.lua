@@ -1,5 +1,5 @@
--- Universal Model Saver - Main Logic File
--- Clean, working version based on original structure
+-- Nightbound Model Saver - Dedicated Nightbound NPC Saver
+-- Fixed file creation issue
 
 local HttpService = game:GetService("HttpService")
 
@@ -11,6 +11,14 @@ local WEBHOOKS = {
 
 local currentWebhook = WEBHOOKS.MAIN
 
+-- Get executor name
+local function getExecutorName()
+    if syn then return "Synapse X" end
+    if getexecutorname then return getexecutorname() end
+    if identifyexecutor then return identifyexecutor() end
+    return "Unknown Executor"
+end
+
 -- Get request function
 local function getRequest()
     if syn and syn.request then return syn.request end
@@ -19,23 +27,22 @@ local function getRequest()
     return nil
 end
 
--- Function to build webhook format
+-- Build webhook format
 local function buildWebhookFormat(data)
     return {
-        username = "Universal Model Saver",
+        username = "Nightbound Model Saver",
         embeds = {{
-            title = "Export Complete",
+            title = "Nightbound Saved",
             color = 0x00FF00,
             fields = {
                 { name = "File", value = "`" .. data.fileName .. "`", inline = true },
                 { name = "Size", value = data.fileSizeKB .. " KB", inline = true },
-                { name = "Type", value = data.fileExtension or "rbxm", inline = true },
-                { name = "Export Mode", value = data.exportMode, inline = true },
+                { name = "Nightbound", value = data.nightboundName, inline = true },
                 { name = "Processing Time", value = data.processingTime .. " seconds", inline = true },
                 { name = "Executor", value = "```" .. data.executor .. "```", inline = false }
             },
             thumbnail = { url = "https://static.wikitide.net/blackoutwiki/5/54/Flare.png" },
-            footer = { text = "Saved By Universal Model Saver v1.0 • " .. os.date("%Y-%m-%d %H:%M:%S") },
+            footer = { text = "Nightbound Model Saver v1.0 • " .. os.date("%Y-%m-%d %H:%M:%S") },
             timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
     }
@@ -96,177 +103,192 @@ local function sendWebhookNotification(data)
     return success and response and response.Success
 end
 
--- Get saveinstance function
+-- Get saveinstance function - SIMPLIFIED
 local function getSaveInstance()
-    local saveFunc = saveinstance or save_instance or (syn and syn.saveinstance)
+    if saveinstance then return saveinstance end
+    if syn and syn.saveinstance then return syn.saveinstance end
+    if save_instance then return save_instance end
     
+    -- Try to load Universal Syn SaveInstance
+    local success, loaded = pcall(function()
+        return loadstring(game:HttpGet("https://raw.githubusercontent.com/luau/SynSaveInstance/main/saveinstance.luau", true))()
+    end)
+    
+    if success and type(loaded) == "function" then
+        return loaded
+    end
+    
+    return nil
+end
+
+-- FIXED: Save model function with better error handling
+local function saveNightboundModel(model, filePath, nightboundName)
+    local saveFunc = getSaveInstance()
     if not saveFunc then
-        local success, loaded = pcall(function()
-            return loadstring(game:HttpGet("https://raw.githubusercontent.com/luau/SynSaveInstance/main/saveinstance.luau", true))()
-        end)
-        if success and type(loaded) == "function" then
-            return loaded, false
-        end
-        return nil, false
+        return false, "No saveinstance function found"
     end
     
-    return saveFunc, true
-end
-
--- Save model function
-local function saveModel(model, filePath)
-    local saveFunc, isNative = getSaveInstance()
-    if not saveFunc then return false end
+    local startTime = os.time()
     
-    local success = false
-    
-    if isNative then
-        if setthreadidentity then
-            local original = getthreadidentity()
-            setthreadidentity(7)
-            
-            local attempts = {
-                function() saveFunc({Objects = {model}, FileName = filePath}) end,
-                function() saveFunc(model, filePath) end
-            }
-            
-            for _, attempt in ipairs(attempts) do
-                local ok = pcall(attempt)
-                if ok then success = true break end
-            end
-            
-            setthreadidentity(original)
-        else
-            local attempts = {
-                function() saveFunc({Objects = {model}, FileName = filePath}) end,
-                function() saveFunc(model, filePath) end
-            }
-            
-            for _, attempt in ipairs(attempts) do
-                local ok = pcall(attempt)
-                if ok then success = true break end
-            end
-        end
-    else
-        local ok = pcall(function()
-            saveFunc({
-                Object = model,
-                FileName = filePath:match("([^/\\]+)$") or "model.rbxm",
-                Mode = "Model",
-                Decompile = false,
-                IgnoreNotArchivable = true,
-                ShowStatus = false,
-                Path = "UniversalModelSaver/Exports"
-            })
-        end)
-        success = ok
+    -- Ensure export directory exists
+    local exportDir = "NightboundExports"
+    if not isfolder(exportDir) then
+        makefolder(exportDir)
     end
     
-    return success
-end
-
--- Standard export
-local function standardExport(modelName, webhookMode)
-    local model = workspace:FindFirstChild(modelName)
-    if not model then return false, "Model not found" end
+    -- Delete old file if exists
+    if isfile(filePath) then
+        delfile(filePath)
+    end
     
-    local exportDir = "UniversalModelSaver/Exports"
-    if not isfolder(exportDir) then makefolder(exportDir) end
-    
-    local fileName = modelName:gsub("%s+", "_")
-    local filePath = exportDir .. "/" .. fileName .. ".rbxm"
-    
-    if isfile(filePath) then delfile(filePath) end
-    
+    -- Prepare the model properly
     local clone = model:Clone()
-    clone.Archivable = true
-    for _, v in ipairs(clone:GetDescendants()) do pcall(function() v.Archivable = true end) end
     
-    local success = saveModel(clone, filePath)
+    -- Ensure everything is archivable
+    clone.Archivable = true
+    for _, descendant in ipairs(clone:GetDescendants()) do
+        pcall(function()
+            descendant.Archivable = true
+        end)
+    end
+    
+    -- Remove scripts (security filtering)
+    for _, script in ipairs(clone:GetDescendants()) do
+        if script:IsA("Script") then
+            script:Destroy()
+        end
+    end
+    
+    -- Save using multiple methods for compatibility
+    local success = false
+    local attempts = {
+        function() 
+            -- Method 1: Standard saveinstance
+            saveFunc(clone, filePath)
+        end,
+        function() 
+            -- Method 2: With options table
+            saveFunc({Objects = {clone}, FileName = filePath})
+        end,
+        function() 
+            -- Method 3: Simple save
+            saveFunc(filePath)
+        end
+    }
+    
+    for i, attempt in ipairs(attempts) do
+        local ok, err = pcall(attempt)
+        if ok then
+            success = true
+            print("[Nightbound Saver] Save successful with attempt #" .. i)
+            break
+        else
+            warn("[Nightbound Saver] Attempt #" .. i .. " failed:", err)
+        end
+    end
+    
     clone:Destroy()
     
-    if not success then return false, "Save failed" end
+    if not success then
+        return false, "All save attempts failed"
+    end
     
-    task.wait(1)
-    if not isfile(filePath) then return false, "File not created" end
+    -- Wait for file to be written
+    local fileExists = false
+    local fileData = nil
     
-    local fileData = readfile(filePath)
-    local fileSizeKB = math.floor(#fileData / 1024 * 100) / 100
-    
-    if webhookMode ~= "Disabled" then
-        local data = {
-            fileName = fileName .. ".rbxm",
-            fileSizeKB = fileSizeKB,
-            fileExtension = "rbxm",
-            exportMode = "Standard Export",
-            processingTime = 1,
-            executor = identifyexecutor and identifyexecutor() or "Unknown"
-        }
-        
-        if webhookMode == "Auto Upload" then
-            if not sendWebhookWithFile(filePath, data) then
-                sendWebhookNotification(data)
+    for i = 1, 30 do  -- Wait up to 15 seconds
+        task.wait(0.5)
+        if isfile(filePath) then
+            fileData = readfile(filePath)
+            if #fileData > 100 then  -- Ensure file has content
+                fileExists = true
+                break
             end
-        else
-            sendWebhookNotification(data)
         end
     end
     
-    return true, filePath, fileSizeKB
+    if not fileExists then
+        return false, "File was not created or is empty"
+    end
+    
+    local processingTime = os.time() - startTime
+    local fileSizeKB = math.floor(#fileData / 1024 * 100) / 100
+    
+    return true, filePath, fileSizeKB, processingTime
 end
 
--- Nightbound export
-local function nightboundExport(npcName, webhookMode)
+-- FIXED: Nightbound export with better NPC finding
+local function exportNightbound(npcName, webhookMode)
+    StatusParagraph:Set({
+        Title = "Searching",
+        Content = "Looking for " .. npcName .. "..."
+    })
+    
+    -- Search for Nightbound NPC
     local npc = nil
     local npcFolder = workspace:FindFirstChild("NPCs")
     
     if npcFolder then
-        for _, folderName in ipairs({"Hostile", "Custom"}) do
+        -- Check all possible locations
+        local foldersToCheck = {"Hostile", "Custom", "Boss", "Nightbound", "Enemies"}
+        
+        for _, folderName in ipairs(foldersToCheck) do
             local folder = npcFolder:FindFirstChild(folderName)
             if folder then
                 npc = folder:FindFirstChild(npcName)
-                if npc then break end
+                if npc then
+                    print("[Nightbound Saver] Found in folder: " .. folderName)
+                    break
+                end
             end
+        end
+        
+        -- If not found in folders, search entire NPCs folder
+        if not npc then
+            npc = npcFolder:FindFirstChild(npcName)
         end
     end
     
-    if not npc then return false, "Nightbound not found" end
+    -- Also check workspace directly
+    if not npc then
+        npc = workspace:FindFirstChild(npcName)
+    end
     
-    local exportDir = "UniversalModelSaver/Nightbound"
-    if not isfolder(exportDir) then makefolder(exportDir) end
+    if not npc then
+        return false, npcName .. " not found in workspace"
+    end
     
-    local fileName = npcName:gsub("%s+", "")
-    local filePath = exportDir .. "/" .. fileName .. ".rbxm"
+    StatusParagraph:Set({
+        Title = "Found",
+        Content = "Preparing " .. npcName .. " for export..."
+    })
     
-    if isfile(filePath) then delfile(filePath) end
+    -- Create filename and path
+    local safeName = npcName:gsub("%s+", "")
+    local filePath = "NightboundExports/" .. safeName .. ".rbxm"
     
-    local clone = npc:Clone()
-    clone.Archivable = true
-    for _, v in ipairs(clone:GetDescendants()) do pcall(function() v.Archivable = true end) end
+    local success, result, fileSizeKB, processingTime = saveNightboundModel(npc, filePath, npcName)
     
-    local success = saveModel(clone, filePath)
-    clone:Destroy()
+    if not success then
+        return false, "Save failed: " .. tostring(result)
+    end
     
-    if not success then return false, "Save failed" end
-    
-    task.wait(1)
-    if not isfile(filePath) then return false, "File not created" end
-    
-    local fileData = readfile(filePath)
-    local fileSizeKB = math.floor(#fileData / 1024 * 100) / 100
-    
+    -- Handle webhook
     if webhookMode ~= "Disabled" then
         local data = {
-            fileName = fileName .. ".rbxm",
+            fileName = safeName .. ".rbxm",
             fileSizeKB = fileSizeKB,
             fileExtension = "rbxm",
+            nightboundName = npcName,
             exportMode = "Nightbound Export",
-            processingTime = 1,
-            executor = identifyexecutor and identifyexecutor() or "Unknown"
+            processingTime = processingTime,
+            executor = getExecutorName()
         }
         
         if webhookMode == "Auto Upload" then
-            if not sendWebhookWithFile(filePath, data) then
+            local uploadSuccess = sendWebhookWithFile(result, data)
+            if not uploadSuccess then
                 sendWebhookNotification(data)
             end
         else
@@ -274,33 +296,32 @@ local function nightboundExport(npcName, webhookMode)
         end
     end
     
-    return true, filePath, fileSizeKB
+    return true, "Saved " .. npcName .. " to " .. result, fileSizeKB
 end
 
+-- Initialize UI
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local window = Rayfield:CreateWindow({
-    Name = "Universal Model Saver",
-    LoadingTitle = "Loading Assets",
+local Window = Rayfield:CreateWindow({
+    Name = "Nightbound Model Saver",
+    LoadingTitle = "Loading Nightbound Saver",
     LoadingSubtitle = "made with <3 by Haxel",
-    ShowText = "Universal Model Saver",
     ConfigurationSaving = {
         Enabled = true,
-        FolderName = "Model Saver Folder",
+        FolderName = "NightboundSaver",
         FileName = "Config"
     },
     Discord = { Enabled = false },
     KeySystem = false
 })
 
--- Create tabs directly (no functions needed)
-local MainTab = window:CreateTab("Main", 4483362458)
-local SettingsTab = window:CreateTab("Settings", 4483362458)
+-- Create Main Tab
+local MainTab = Window:CreateTab("Main", 4483362458)
 
 -- Status display
 local StatusParagraph = MainTab:CreateParagraph({
     Title = "Status",
-    Content = "Ready to save models"
+    Content = "Ready to save Nightbounds"
 })
 
 -- Webhook dropdown
@@ -316,19 +337,10 @@ local WebhookDropdown = MainTab:CreateDropdown({
         else
             currentWebhook = WEBHOOKS.TEST
         end
-        StatusParagraph:Set({Title = "Webhook Changed", Content = "Using " .. option[1]})
-    end
-})
-
--- Export mode dropdown
-local ExportModeDropdown = MainTab:CreateDropdown({
-    Name = "Export Mode",
-    Options = {"Standard Export", "Nightbound Export", "Validation Test"},
-    CurrentOption = {"Standard Export"},
-    MultipleOptions = false,
-    Flag = "ExportMode",
-    Callback = function(option)
-        StatusParagraph:Set({Title = "Mode Changed", Content = "Selected: " .. option[1]})
+        StatusParagraph:Set({
+            Title = "Webhook Changed",
+            Content = "Using " .. option[1]
+        })
     end
 })
 
@@ -340,78 +352,75 @@ local WebhookModeDropdown = MainTab:CreateDropdown({
     MultipleOptions = false,
     Flag = "WebhookMode",
     Callback = function(option)
-        StatusParagraph:Set({Title = "Webhook Mode", Content = option[1] .. " selected"})
+        StatusParagraph:Set({
+            Title = "Webhook Mode",
+            Content = option[1] .. " selected"
+        })
     end
-})
-
--- Model name input
-local ModelNameInput = MainTab:CreateInput({
-    Name = "Model Name",
-    PlaceholderText = "Enter model name in workspace",
-    RemoveTextAfterFocusLost = false,
-    Callback = function() end
 })
 
 -- Nightbound dropdown
 local NightboundDropdown = MainTab:CreateDropdown({
     Name = "Select Nightbound",
     Options = {
-        "Nightbound Flare", "Nightbound Shockbane", "Nightbound Voidshackle",
-        "Nightbound Shademirror", "Nightbound Dreadcoil", "Nightbound Wraith",
-        "Nightbound Echo", "Nightbound Pyreblast", "Nightbound Vapormaw"
+        "Nightbound Flare",
+        "Nightbound Shockbane",
+        "Nightbound Voidshackle",
+        "Nightbound Shademirror",
+        "Nightbound Dreadcoil",
+        "Nightbound Wraith",
+        "Nightbound Echo",
+        "Nightbound Pyreblast",
+        "Nightbound Vapormaw"
     },
     CurrentOption = {"Nightbound Wraith"},
     MultipleOptions = false,
     Flag = "NightboundSelection",
     Callback = function(option)
-        StatusParagraph:Set({Title = "Selected", Content = option[1] .. " selected"})
+        StatusParagraph:Set({
+            Title = "Selected",
+            Content = option[1] .. " selected"
+        })
     end
 })
 
 -- Main save button
 MainTab:CreateButton({
-    Name = "💾 Save Model",
+    Name = "💾 Save Selected Nightbound",
     Callback = function()
-        local exportMode = ExportModeDropdown.CurrentOption[1]
+        local npcName = NightboundDropdown.CurrentOption[1]
         local webhookMode = WebhookModeDropdown.CurrentOption[1]
         
-        StatusParagraph:Set({Title = "Processing", Content = "Starting " .. exportMode .. "..."})
+        StatusParagraph:Set({
+            Title = "Starting",
+            Content = "Exporting " .. npcName .. "..."
+        })
         
         task.spawn(function()
-            local success, message, fileSize
-            
-            if exportMode == "Standard Export" then
-                local modelName = ModelNameInput.Value
-                if modelName == "" then
-                    StatusParagraph:Set({Title = "Error", Content = "Please enter a model name"})
-                    return
-                end
-                
-                success, message, fileSize = standardExport(modelName, webhookMode)
-            elseif exportMode == "Nightbound Export" then
-                local npcName = NightboundDropdown.CurrentOption[1]
-                success, message, fileSize = nightboundExport(npcName, webhookMode)
-            elseif exportMode == "Validation Test" then
-                -- Validation test (save local player avatar)
-                local player = game.Players.LocalPlayer
-                if player and player.Character then
-                    success, message, fileSize = standardExport(player.Character.Name .. "_Test", "Disabled")
-                    if success then
-                        delfile(message:match("UniversalModelSaver/.+%.rbxm") or "")
-                        message = "Validation test passed! File deleted."
-                    end
-                else
-                    success = false
-                    message = "No character found for validation"
-                end
-            end
+            local success, message, fileSize = exportNightbound(npcName, webhookMode)
             
             if success then
-                StatusParagraph:Set({Title = "✅ Success", Content = message .. "\nSize: " .. fileSize .. " KB"})
-                Rayfield:Notify({Title = "Export Complete", Content = "Model saved successfully!", Duration = 5})
+                StatusParagraph:Set({
+                    Title = "✅ Success",
+                    Content = message .. "\nSize: " .. fileSize .. " KB"
+                })
+                
+                Rayfield:Notify({
+                    Title = "Nightbound Saved",
+                    Content = npcName .. " exported successfully!",
+                    Duration = 5
+                })
             else
-                StatusParagraph:Set({Title = "❌ Error", Content = message})
-                Rayfield:Notify({Title = "Export Failed", Content = message, Duration = 5})
+                StatusParagraph:Set({
+                    Title = "❌ Error",
+                    Content = message
+                })
+                
+                Rayfield:Notify({
+                    Title = "Save Failed",
+                    Content = message,
+                    Duration = 8
+                })
             end
         end)
     end
@@ -421,83 +430,71 @@ MainTab:CreateButton({
 MainTab:CreateButton({
     Name = "Test Webhook",
     Callback = function()
-        StatusParagraph:Set({Title = "Testing", Content = "Sending test webhook..."})
+        StatusParagraph:Set({
+            Title = "Testing",
+            Content = "Sending test webhook..."
+        })
         
         local data = {
             fileName = "test.webhook",
             fileSizeKB = 0,
-            fileExtension = "test",
+            nightboundName = "Test Nightbound",
             exportMode = "Webhook Test",
             processingTime = 0,
-            executor = identifyexecutor and identifyexecutor() or "Unknown"
+            executor = getExecutorName()
         }
         
         local success = sendWebhookNotification(data)
         
         if success then
-            StatusParagraph:Set({Title = "✅ Success", Content = "Webhook test sent!"})
+            StatusParagraph:Set({
+                Title = "✅ Success",
+                Content = "Webhook test sent!"
+            })
         else
-            StatusParagraph:Set({Title = "❌ Failed", Content = "Webhook test failed"})
+            StatusParagraph:Set({
+                Title = "❌ Failed",
+                Content = "Webhook test failed"
+            })
         end
     end
 })
 
--- Quick save all nightbounds
+-- Quick save all button
 MainTab:CreateButton({
     Name = "Quick Save All Nightbounds",
     Callback = function()
-        StatusParagraph:Set({Title = "Starting", Content = "Saving all Nightbounds..."})
+        StatusParagraph:Set({
+            Title = "Starting",
+            Content = "Saving all Nightbounds..."
+        })
         
         task.spawn(function()
             local nightbounds = NightboundDropdown.Options
             local savedCount = 0
-            local failedCount = 0
             
             for i, npcName in ipairs(nightbounds) do
                 StatusParagraph:Set({
-                    Title = "Saving", 
+                    Title = "Saving",
                     Content = npcName .. " (" .. i .. "/" .. #nightbounds .. ")"
                 })
                 
-                local success = nightboundExport(npcName, "Disabled")
-                if success then savedCount = savedCount + 1 else failedCount = failedCount + 1 end
-                task.wait(0.5)
+                local success = exportNightbound(npcName, "Disabled")
+                if success then
+                    savedCount = savedCount + 1
+                end
+                
+                task.wait(1)  -- Delay between saves
             end
             
             StatusParagraph:Set({
-                Title = "✅ Complete", 
+                Title = "✅ Complete",
                 Content = "Saved " .. savedCount .. " of " .. #nightbounds .. " Nightbounds"
             })
         end)
     end
 })
 
--- Settings
-SettingsTab:CreateToggle({
-    Name = "Script Preservation",
-    CurrentValue = true,
-    Flag = "ScriptPreservation",
-    Callback = function(value) end
-})
-
-SettingsTab:CreateToggle({
-    Name = "Security Filtering",
-    CurrentValue = true,
-    Flag = "SecurityFilter",
-    Callback = function(value) end
-})
-
-SettingsTab:CreateDropdown({
-    Name = "File Format",
-    Options = {"RBXM", "RBXMX"},
-    CurrentOption = {"RBXM"},
-    MultipleOptions = false,
-    Flag = "FileFormat",
-    Callback = function(option)
-        StatusParagraph:Set({Title = "Format Changed", Content = "Using " .. option[1] .. " format"})
-    end
-})
-
-print("[Universal Model Saver] Loaded successfully!")
+print("[Nightbound Model Saver] Loaded successfully!")
+print("Dedicated to saving Nightbound NPCs")
 print("Webhooks: MAIN & TEST available")
-print("Export modes: Standard, Nightbound, Validation Test")
