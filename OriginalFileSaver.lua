@@ -56,44 +56,57 @@ local function sendWebhookWithFile(filePath, data, webhookUrl)
     if not isfile(filePath) then
         return false, "File does not exist"
     end
-    
+
     local fileData = readfile(filePath)
-    if #fileData == 0 then
+    if not fileData or #fileData == 0 then
         return false, "File is empty"
     end
-    
+
     local requestFunc = getRequestFunction()
     if not requestFunc then
         return false, "No HTTP request function available"
     end
-    
-    local boundary = "----WebKitFormBoundary" .. tostring(math.random(100000, 999999))
+
+    data = data or {}
+    data.fileName = data.fileName or "file.bin"
+
+    local boundary = "----WebKitFormBoundary" .. math.random(100000, 999999)
     local payload = buildWebhookFormat(data)
-    
-    -- Build the multipart form data correctly
-    local body = "--" .. boundary .. "\r\n"
-    body = body .. 'Content-Disposition: form-data; name="payload_json"\r\n'
-    body = body .. "Content-Type: application/json\r\n\r\n"
-    body = body .. HttpService:JSONEncode(payload) .. "\r\n"
-    
-    body = body .. "--" .. boundary .. "\r\n"
-    body = body .. 'Content-Disposition: form-data; name="file"; filename="' .. data.fileName .. '"\r\n'
-    body = body .. "Content-Type: application/octet-stream\r\n\r\n"
-    body = body .. fileData .. "\r\n"
-    body = body .. "--" .. boundary .. "--\r\n"
-    
+
+    local body = table.concat({
+        "--" .. boundary,
+        'Content-Disposition: form-data; name="payload_json"',
+        "Content-Type: application/json",
+        "",
+        HttpService:JSONEncode(payload),
+
+        "--" .. boundary,
+        string.format(
+            'Content-Disposition: form-data; name="file"; filename="%s"',
+            data.fileName
+        ),
+        "Content-Type: application/octet-stream",
+        "",
+        fileData,
+
+        "--" .. boundary .. "--",
+        ""
+    }, "\r\n")
+
     local success, response = pcall(function()
         return requestFunc({
             Url = webhookUrl or currentWebhook,
             Method = "POST",
             Headers = {
-                ["Content-Type"] = "multipart/form-data; boundary=" .. boundary
+                ["Content-Type"] = "multipart/form-data; boundary=" .. boundary,
+                ["Content-Length"] = tostring(#body)
             },
             Body = body
         })
     end)
-    
-    return success and response and response.Success, success and response or "Request failed"
+
+    return success and response and response.Success,
+           success and response or "Request failed"
 end
 
 -- Function to send webhook notification only (no file)
