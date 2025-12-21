@@ -121,8 +121,8 @@ local function getSaveInstance()
     return nil
 end
 
--- FIXED: Save model function with better error handling
-local function saveNightboundModel(model, folderPath, filePath, nightboundName)
+-- FIXED: Save model function that saves ONLY the specified model
+local function saveNightboundModel(model, filePath, nightboundName)
     local saveFunc = getSaveInstance()
     if not saveFunc then
         return false, "No saveinstance function found"
@@ -130,57 +130,104 @@ local function saveNightboundModel(model, folderPath, filePath, nightboundName)
 
     local startTime = os.time()
 
-    -- Default folder if not provided
-    folderPath = folderPath or "SAVEDNIGHTBOUNDS"
+    -- Ensure export directory exists
+    local folderPath = "NightboundExports"
     if not isfolder(folderPath) then
         makefolder(folderPath)
     end
-
-    -- Construct full path
-    filePath = folderPath .. "/" .. filePath
 
     -- Delete old file if exists
     if isfile(filePath) then
         delfile(filePath)
     end
 
-    -- Clone and prepare model
+    -- Clone and prepare model (ensure everything is archivable)
     local clone = model:Clone()
+    
+    -- Set archivable property on everything
     clone.Archivable = true
     for _, desc in ipairs(clone:GetDescendants()) do
-        pcall(function() desc.Archivable = true end)
+        pcall(function() 
+            desc.Archivable = true 
+        end)
     end
 
-    -- Optional: remove scripts for security
-    for _, s in ipairs(clone:GetDescendants()) do
-        if s:IsA("Script") then
-            s:Destroy()
-        end
-    end
-
-    -- Save the model using table form for safe folder saving
-    local success, err = pcall(function()
+    -- Try different saveinstance methods to find what works
+    local success = false
+    local errMsg = ""
+    
+    -- Method 1: Try with Objects table (most reliable for saving single model)
+    local ok1, err1 = pcall(function()
         saveFunc({
             Objects = {clone},
-            FileName = filePath:match("([^/\\]+)$"), -- extract file name from path
-            Path = folderPath
+            FileName = filePath:match("([^/\\]+)$") or nightboundName .. ".rbxm"
         })
     end)
+    
+    if ok1 then
+        success = true
+    else
+        -- Method 2: Try direct save (some saveinstance versions work this way)
+        local ok2, err2 = pcall(function()
+            -- Create a temporary folder with just the model
+            local tempModel = Instance.new("Model")
+            tempModel.Name = nightboundName
+            clone.Parent = tempModel
+            saveFunc(tempModel, filePath)
+            tempModel:Destroy()
+        end)
+        
+        if ok2 then
+            success = true
+        else
+            -- Method 3: Try the simplest approach
+            local ok3, err3 = pcall(function()
+                saveFunc(clone, filePath)
+            end)
+            
+            if ok3 then
+                success = true
+            else
+                -- Method 4: Try Universal Syn SaveInstance format
+                local ok4, err4 = pcall(function()
+                    saveFunc({
+                        Object = clone,
+                        FileName = nightboundName .. ".rbxm",
+                        Mode = "Model",
+                        Decompile = false,
+                        IgnoreNotArchivable = true,
+                        ShowStatus = false,
+                        Path = "NightboundExports"
+                    })
+                end)
+                
+                if ok4 then
+                    success = true
+                else
+                    errMsg = "All save methods failed:\n1: " .. tostring(err1) .. 
+                             "\n2: " .. tostring(err2) .. 
+                             "\n3: " .. tostring(err3) ..
+                             "\n4: " .. tostring(err4)
+                end
+            end
+        end
+    end
 
     clone:Destroy()
 
     if not success then
-        return false, "Save failed: " .. tostring(err)
+        return false, "Save failed: " .. errMsg
     end
 
-    -- Wait for file to exist
+    -- Wait for file to exist with timeout
     local fileExists = false
-    local fileData
-    for i = 1, 30 do
+    local fileData = nil
+    
+    for i = 1, 20 do  -- 10 second timeout
         task.wait(0.5)
         if isfile(filePath) then
             fileData = readfile(filePath)
-            if #fileData > 100 then
+            if fileData and #fileData > 100 then  -- Ensure file has content
                 fileExists = true
                 break
             end
@@ -188,80 +235,99 @@ local function saveNightboundModel(model, folderPath, filePath, nightboundName)
     end
 
     if not fileExists then
-        return false, "File was not created or is empty"
+        -- Try alternative path
+        local altPath = "NightboundExports/" .. nightboundName .. ".rbxm"
+        if isfile(altPath) then
+            filePath = altPath
+            fileData = readfile(filePath)
+            if fileData and #fileData > 100 then
+                fileExists = true
+            end
+        end
+    end
+
+    if not fileExists then
+        return false, "File was not created or is empty. Check if saveinstance is working."
     end
 
     local processingTime = os.time() - startTime
     local fileSizeKB = math.floor(#fileData / 1024 * 100) / 100
 
-    return true, filePath, fileSizeKB, processingTime, nightboundName
+    return true, filePath, fileSizeKB, processingTime
 end
 
-
--- Safe status setter
-local function setStatus(title, content)
-    if StatusParagraph and StatusParagraph.Set then
-        StatusParagraph:Set({
-            Title = title,
-            Content = content
-        })
-    end
-end
-
--- Fixed Nightbound export
+-- FIXED: Nightbound export with proper file path
 local function exportNightbound(npcName, webhookMode)
     setStatus("Searching", "Looking for " .. npcName .. "...")
-
+    
     -- Search for Nightbound NPC
     local npc = nil
     local npcFolder = workspace:FindFirstChild("NPCs")
-
+    
     if npcFolder then
-        -- Check all possible locations
-        local foldersToCheck = {"Hostile", "Custom", "Boss", "Nightbound", "Enemies"}
-
-        for _, folderName in ipairs(foldersToCheck) do
-            local folder = npcFolder:FindFirstChild(folderName)
-            if folder then
-                npc = folder:FindFirstChild(npcName)
-                if npc then
-                    print("[Nightbound Saver] Found in folder: " .. folderName)
-                    break
-                end
-            end
+        -- Check both Hostile and Custom folders
+        local hostileFolder = npcFolder:FindFirstChild("Hostile")
+        local customFolder = npcFolder:FindFirstChild("Custom")
+        
+        if hostileFolder then
+            npc = hostileFolder:FindFirstChild(npcName)
         end
-
-        -- If not found in folders, search entire NPCs folder
+        
+        if not npc and customFolder then
+            npc = customFolder:FindFirstChild(npcName)
+        end
+        
+        -- If still not found, search entire NPCs folder
         if not npc then
             npc = npcFolder:FindFirstChild(npcName)
         end
     end
-
-    -- Also check workspace directly
+    
+    -- Also check workspace directly (some NPCs might be spawned)
     if not npc then
         npc = workspace:FindFirstChild(npcName)
     end
-
+    
     if not npc then
-        return false, npcName .. " not found in workspace"
+        return false, npcName .. " not found. Make sure the NPC is spawned in-game."
     end
-
+    
     setStatus("Found", "Preparing " .. npcName .. " for export...")
-
-    -- Create filename and path
-    local safeName = npcName:gsub("%s+", "")
-    local filePath = "NightboundExports/" .. safeName .. ".rbxm"
-
+    
+    -- Create safe filename
+    local safeName = npcName:gsub("%s+", "_")
+    local fileName = safeName .. ".rbxm"
+    local filePath = "NightboundExports/" .. fileName
+    
+    -- Try to save the model
     local success, result, fileSizeKB, processingTime = saveNightboundModel(npc, filePath, npcName)
-
+    
     if not success then
         return false, "Save failed: " .. tostring(result)
     end
-
-    -- Handle webhook
+    
+    -- Verify the file was created
+    task.wait(1)  -- Extra wait to ensure file is written
+    
+    if not isfile(filePath) then
+        -- Try without the folder prefix
+        local altPath = fileName
+        if isfile(altPath) then
+            filePath = altPath
+        else
+            return false, "File was not created at: " .. filePath
+        end
+    end
+    
+    local fileData = readfile(filePath)
+    if not fileData or #fileData < 100 then
+        return false, "File created but is too small or empty"
+    end
+    
+    -- Handle webhook if enabled
     if webhookMode ~= "Disabled" then
         local data = {
-            fileName = safeName .. ".rbxm",
+            fileName = fileName,
             fileSizeKB = fileSizeKB,
             fileExtension = "rbxm",
             nightboundName = npcName,
@@ -269,9 +335,9 @@ local function exportNightbound(npcName, webhookMode)
             processingTime = processingTime,
             executor = getExecutorName()
         }
-
+        
         if webhookMode == "Auto Upload" then
-            local uploadSuccess = sendWebhookWithFile(result, data)
+            local uploadSuccess = sendWebhookWithFile(filePath, data)
             if not uploadSuccess then
                 sendWebhookNotification(data)
             end
@@ -279,8 +345,8 @@ local function exportNightbound(npcName, webhookMode)
             sendWebhookNotification(data)
         end
     end
-
-    return true, "Saved " .. npcName .. " to " .. result, fileSizeKB
+    
+    return true, "✓ Saved " .. npcName .. "\nLocation: " .. filePath .. "\nSize: " .. fileSizeKB .. " KB", fileSizeKB
 end
 
 
