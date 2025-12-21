@@ -3,6 +3,23 @@
 
 local HttpService = game:GetService("HttpService")
 
+-- Initialize UI
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+-- Create Main Tab
+local MainTab = Window:CreateTab("Main", 4483362458)
+local Window = Rayfield:CreateWindow({
+    Name = "Nightbound Model Saver",
+    LoadingTitle = "Loading Nightbound Saver",
+    LoadingSubtitle = "made with <3 by Haxel",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "NightboundSaver",
+        FileName = "Config"
+    },
+    Discord = { Enabled = false },
+    KeySystem = false
+})
+
 -- Webhook Configuration
 local WEBHOOKS = {
     TEST = "https://discord.com/api/webhooks/1450381715309592620/nAMQJifMff6I3Lddmj9drNDDU6cl4m0lXPU-1Ca5hIZzLabVKD7BeaEtLYvmRb2HmGtq",
@@ -304,28 +321,6 @@ local function exportNightbound(npcName, webhookMode)
     
     return true, "Saved " .. npcName .. " to " .. result, fileSizeKB
 end
-
--- Initialize UI
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-
-local Window = Rayfield:CreateWindow({
-    Name = "Nightbound Model Saver",
-    LoadingTitle = "Loading Nightbound Saver",
-    LoadingSubtitle = "made with <3 by Haxel",
-    ConfigurationSaving = {
-        Enabled = true,
-        FolderName = "NightboundSaver",
-        FileName = "Config"
-    },
-    Discord = { Enabled = false },
-    KeySystem = false
-})
-
--- Create Main Tab
-local MainTab = Window:CreateTab("Main", 4483362458)
-
--- Status display
-local MainStatusParagraph = StatusParagraph
 
 -- Webhook dropdown
 local WebhookDropdown = MainTab:CreateDropdown({
