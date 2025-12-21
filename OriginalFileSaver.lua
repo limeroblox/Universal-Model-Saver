@@ -51,6 +51,7 @@ local function getRequestFunction()
 end
 
 -- Function to send webhook with file attachment
+-- Function to send webhook with file attachment
 local function sendWebhookWithFile(filePath, data, webhookUrl)
     if not isfile(filePath) then
         return false, "File does not exist"
@@ -69,13 +70,14 @@ local function sendWebhookWithFile(filePath, data, webhookUrl)
     local boundary = "----WebKitFormBoundary" .. tostring(math.random(100000, 999999))
     local payload = buildWebhookFormat(data)
     
+    -- Build the multipart form data correctly
     local body = "--" .. boundary .. "\r\n"
-    body = body .. 'Content-Disposition: form-data; name="payload_json"\r\n"
+    body = body .. 'Content-Disposition: form-data; name="payload_json"\r\n'
     body = body .. "Content-Type: application/json\r\n\r\n"
     body = body .. HttpService:JSONEncode(payload) .. "\r\n"
     
     body = body .. "--" .. boundary .. "\r\n"
-    body = body .. 'Content-Disposition: form-data; name="file"; filename="' .. data.fileName .. '"\r\n"
+    body = body .. 'Content-Disposition: form-data; name="file"; filename="' .. data.fileName .. '"\r\n'
     body = body .. "Content-Type: application/octet-stream\r\n\r\n"
     body = body .. fileData .. "\r\n"
     body = body .. "--" .. boundary .. "--\r\n"
