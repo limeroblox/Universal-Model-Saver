@@ -122,57 +122,60 @@ local function getSaveInstance()
 end
 
 -- FIXED: Save model function with better error handling
-local function saveNightboundModel(model, fileName, nightboundName)
+local function saveNightboundModel(model, filePath, nightboundName)
     local saveFunc = getSaveInstance()
     if not saveFunc then
         return false, "No saveinstance function found"
     end
-
+    
     local startTime = os.time()
-
+    
     -- Ensure export directory exists
     local exportDir = "NightboundExports"
     if not isfolder(exportDir) then
         makefolder(exportDir)
     end
-
-    -- Full file path
-    local filePath = exportDir .. "/" .. fileName
-
+    
     -- Delete old file if exists
     if isfile(filePath) then
         delfile(filePath)
     end
-
+    
     -- Prepare the model properly
     local clone = model:Clone()
-
+    
     -- Ensure everything is archivable
     clone.Archivable = true
     for _, descendant in ipairs(clone:GetDescendants()) do
-        pcall(function() descendant.Archivable = true end)
+        pcall(function()
+            descendant.Archivable = true
+        end)
     end
-
-    -- Remove scripts for security
-    for _, s in ipairs(clone:GetDescendants()) do
-        if s:IsA("Script") then
-            s:Destroy()
+    
+    -- Remove scripts (security filtering)
+    for _, script in ipairs(clone:GetDescendants()) do
+        if script:IsA("Script") then
+            script:Destroy()
         end
     end
-
-    -- Save using proper folder + filename
+    
+    -- Save using multiple methods for compatibility
     local success = false
     local attempts = {
-        function()
-            saveFunc({Objects = {clone}, FileName = fileName, Path = exportDir})
+        function() 
+            -- Method 1: Standard saveinstance
+            saveFunc(clone, filePath)
         end,
-        function()
-            -- fallback: just save to folder manually
-            local fullPath = exportDir .. "/" .. fileName
-            saveFunc(clone, fullPath)
+        function() 
+            -- Method 2: With options table
+            saveFunc({Objects = {clone}, FileName = filePath})
+        end,
+        function() 
+            -- Method 3: Simple save
+            saveFunc(filePath)
         end
     }
-
+    
     for i, attempt in ipairs(attempts) do
         local ok, err = pcall(attempt)
         if ok then
@@ -183,60 +186,53 @@ local function saveNightboundModel(model, fileName, nightboundName)
             warn("[Nightbound Saver] Attempt #" .. i .. " failed:", err)
         end
     end
-
+    
     clone:Destroy()
-
+    
     if not success then
         return false, "All save attempts failed"
     end
-
+    
     -- Wait for file to be written
     local fileExists = false
     local fileData = nil
-
-    for i = 1, 30 do
+    
+    for i = 1, 30 do  -- Wait up to 15 seconds
         task.wait(0.5)
         if isfile(filePath) then
             fileData = readfile(filePath)
-            if #fileData > 100 then
+            if #fileData > 100 then  -- Ensure file has content
                 fileExists = true
                 break
             end
         end
     end
-
+    
     if not fileExists then
         return false, "File was not created or is empty"
     end
-
+    
     local processingTime = os.time() - startTime
     local fileSizeKB = math.floor(#fileData / 1024 * 100) / 100
-
+    
     return true, filePath, fileSizeKB, processingTime
 end
 
--- Safe status setter
-local function setStatus(title, content)
-    if StatusParagraph and StatusParagraph.Set then
-        StatusParagraph:Set({
-            Title = title,
-            Content = content
-        })
-    end
-end
-
--- Fixed Nightbound export
+-- FIXED: Nightbound export with better NPC finding
 local function exportNightbound(npcName, webhookMode)
-    setStatus("Searching", "Looking for " .. npcName .. "...")
-
+    StatusParagraph:Set({
+        Title = "Searching",
+        Content = "Looking for " .. npcName .. "..."
+    })
+    
     -- Search for Nightbound NPC
     local npc = nil
     local npcFolder = workspace:FindFirstChild("NPCs")
-
+    
     if npcFolder then
         -- Check all possible locations
         local foldersToCheck = {"Hostile", "Custom", "Boss", "Nightbound", "Enemies"}
-
+        
         for _, folderName in ipairs(foldersToCheck) do
             local folder = npcFolder:FindFirstChild(folderName)
             if folder then
@@ -247,34 +243,37 @@ local function exportNightbound(npcName, webhookMode)
                 end
             end
         end
-
+        
         -- If not found in folders, search entire NPCs folder
         if not npc then
             npc = npcFolder:FindFirstChild(npcName)
         end
     end
-
+    
     -- Also check workspace directly
     if not npc then
         npc = workspace:FindFirstChild(npcName)
     end
-
+    
     if not npc then
         return false, npcName .. " not found in workspace"
     end
-
-    setStatus("Found", "Preparing " .. npcName .. " for export...")
-
+    
+    StatusParagraph:Set({
+        Title = "Found",
+        Content = "Preparing " .. npcName .. " for export..."
+    })
+    
     -- Create filename and path
     local safeName = npcName:gsub("%s+", "")
     local filePath = "NightboundExports/" .. safeName .. ".rbxm"
-
+    
     local success, result, fileSizeKB, processingTime = saveNightboundModel(npc, filePath, npcName)
-
+    
     if not success then
         return false, "Save failed: " .. tostring(result)
     end
-
+    
     -- Handle webhook
     if webhookMode ~= "Disabled" then
         local data = {
@@ -286,7 +285,7 @@ local function exportNightbound(npcName, webhookMode)
             processingTime = processingTime,
             executor = getExecutorName()
         }
-
+        
         if webhookMode == "Auto Upload" then
             local uploadSuccess = sendWebhookWithFile(result, data)
             if not uploadSuccess then
@@ -296,10 +295,9 @@ local function exportNightbound(npcName, webhookMode)
             sendWebhookNotification(data)
         end
     end
-
+    
     return true, "Saved " .. npcName .. " to " .. result, fileSizeKB
 end
-
 
 -- Initialize UI
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
