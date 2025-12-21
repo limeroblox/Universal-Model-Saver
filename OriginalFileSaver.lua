@@ -122,7 +122,7 @@ local function getSaveInstance()
 end
 
 -- FIXED: Save model function with better error handling
-local function saveNightboundModel(model, fileName, nightboundName)
+local function saveNightboundModel(model, folderPath, filePath, nightboundName)
     local saveFunc = getSaveInstance()
     if not saveFunc then
         return false, "No saveinstance function found"
@@ -130,20 +130,21 @@ local function saveNightboundModel(model, fileName, nightboundName)
 
     local startTime = os.time()
 
-    -- Ensure export directory exists
-    local exportDir = "NightboundExports"
-    if not isfolder(exportDir) then
-        makefolder(exportDir)
+    -- Default folder if not provided
+    folderPath = folderPath or "SAVEDNIGHTBOUNDS"
+    if not isfolder(folderPath) then
+        makefolder(folderPath)
     end
 
-    local filePath = exportDir .. "/" .. fileName
+    -- Construct full path
+    filePath = folderPath .. "/" .. filePath
 
     -- Delete old file if exists
     if isfile(filePath) then
         delfile(filePath)
     end
 
-    -- Clone model and make it archivable
+    -- Clone and prepare model
     local clone = model:Clone()
     clone.Archivable = true
     for _, desc in ipairs(clone:GetDescendants()) do
@@ -157,27 +158,19 @@ local function saveNightboundModel(model, fileName, nightboundName)
         end
     end
 
-    local success = false
-
-    -- Correct method: wrap model in Objects table
-    local ok, err = pcall(function()
+    -- Save the model using table form for safe folder saving
+    local success, err = pcall(function()
         saveFunc({
             Objects = {clone},
-            FileName = fileName,
-            Path = exportDir
+            FileName = filePath:match("([^/\\]+)$"), -- extract file name from path
+            Path = folderPath
         })
     end)
-
-    if ok then
-        success = true
-    else
-        warn("[Nightbound Saver] Save failed:", err)
-    end
 
     clone:Destroy()
 
     if not success then
-        return false, "Save failed"
+        return false, "Save failed: " .. tostring(err)
     end
 
     -- Wait for file to exist
@@ -195,13 +188,13 @@ local function saveNightboundModel(model, fileName, nightboundName)
     end
 
     if not fileExists then
-        return false, "File not created or empty"
+        return false, "File was not created or is empty"
     end
 
     local processingTime = os.time() - startTime
     local fileSizeKB = math.floor(#fileData / 1024 * 100) / 100
 
-    return true, filePath, fileSizeKB, processingTime
+    return true, filePath, fileSizeKB, processingTime, nightboundName
 end
 
 
