@@ -11,18 +11,6 @@ local WEBHOOKS = {
 
 local currentWebhook = WEBHOOKS.MAIN
 
--- Get request function for webhooks
-local function getRequestFunction()
-    if syn and syn.request then
-        return syn.request
-    elseif http and http.request then
-        return http.request
-    elseif request then
-        return request
-    else
-        return nil
-    end
-end
 -- Function to build webhook embed format
 local function buildWebhookFormat(data)
     return {
@@ -49,6 +37,19 @@ local function buildWebhookFormat(data)
     }
 end
 
+-- Get request function for webhooks
+local function getRequestFunction()
+    if syn and syn.request then
+        return syn.request
+    elseif http and http.request then
+        return http.request
+    elseif request then
+        return request
+    else
+        return nil
+    end
+end
+
 -- Function to send webhook with file attachment
 local function sendWebhookWithFile(filePath, data, webhookUrl)
     if not isfile(filePath) then
@@ -69,12 +70,12 @@ local function sendWebhookWithFile(filePath, data, webhookUrl)
     local payload = buildWebhookFormat(data)
     
     local body = "--" .. boundary .. "\r\n"
-    body = body .. 'Content-Disposition: form-data; name="payload_json"\r\n'
+    body = body .. 'Content-Disposition: form-data; name="payload_json"\r\n"
     body = body .. "Content-Type: application/json\r\n\r\n"
     body = body .. HttpService:JSONEncode(payload) .. "\r\n"
     
     body = body .. "--" .. boundary .. "\r\n"
-    body = body .. 'Content-Disposition: form-data; name="file"; filename="' .. data.fileName .. '"\r\n'
+    body = body .. 'Content-Disposition: form-data; name="file"; filename="' .. data.fileName .. '"\r\n"
     body = body .. "Content-Type: application/octet-stream\r\n\r\n"
     body = body .. fileData .. "\r\n"
     body = body .. "--" .. boundary .. "--\r\n"
@@ -323,285 +324,301 @@ local function nightboundExport(npcName, webhookMode)
     return true, "Nightbound export completed: " .. filePath, fileSizeKB
 end
 
-local Rayfeild = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+-- Now let's properly load the UI and create elements
+-- First, let's load the UI and make sure we can access Window
+local Rayfield, Window
 
-local Window = Rayfeild:CreateWindow({
-    Name = "Universal Model Saver",
-    LoadingTitle = "Loading Assets",
-    LoadingSubtitle = "made with <3 by Haxel",
-    ShowText = "Universal Model Saver",
-    ConfigurationSaving = {
-        Enabled = true,
-        FolderName = "Model Saver Folder",
-        FileName = "Config"
-    },
-    Discord = { Enabled = false },
-    KeySystem = false
-})
+local function initializeUI()
+    -- Load the Rayfield UI
+    Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+    
+    -- Create the window
+    Window = Rayfield:CreateWindow({
+        Name = "Universal Model Saver",
+        LoadingTitle = "Loading Assets",
+        LoadingSubtitle = "made with <3 by Haxel",
+        ShowText = "Universal Model Saver",
+        ConfigurationSaving = {
+            Enabled = true,
+            FolderName = "Model Saver Folder",
+            FileName = "Config"
+        },
+        Discord = { Enabled = false },
+        KeySystem = false
+    })
+    
+    -- Now create tabs and elements
+    createUIElements()
+end
 
--- Create tabs and elements
-local MainTab = Window:CreateTab("Main", 4483362458)
-local SettingsTab = Window:CreateTab("Settings", 4483362458)
-
--- Status display
-local StatusParagraph = MainTab:CreateParagraph({
-    Title = "Status",
-    Content = "Ready to save models"
-})
-
--- Webhook dropdown
-local WebhookDropdown = MainTab:CreateDropdown({
-    Name = "Select Webhook",
-    Options = {"MAIN Webhook", "TEST Webhook"},
-    CurrentOption = {"MAIN Webhook"},
-    MultipleOptions = false,
-    Flag = "WebhookSelection",
-    Callback = function(option)
-        if option[1] == "MAIN Webhook" then
-            currentWebhook = WEBHOOKS.MAIN
-        else
-            currentWebhook = WEBHOOKS.TEST
+local function createUIElements()
+    -- Create tabs
+    local MainTab = Window:CreateTab("Main", 4483362458)
+    local SettingsTab = Window:CreateTab("Settings", 4483362458)
+    
+    -- Status display
+    local StatusParagraph = MainTab:CreateParagraph({
+        Title = "Status",
+        Content = "Ready to save models"
+    })
+    
+    -- Webhook dropdown
+    local WebhookDropdown = MainTab:CreateDropdown({
+        Name = "Select Webhook",
+        Options = {"MAIN Webhook", "TEST Webhook"},
+        CurrentOption = {"MAIN Webhook"},
+        MultipleOptions = false,
+        Flag = "WebhookSelection",
+        Callback = function(option)
+            if option[1] == "MAIN Webhook" then
+                currentWebhook = WEBHOOKS.MAIN
+            else
+                currentWebhook = WEBHOOKS.TEST
+            end
+            StatusParagraph:Set({
+                Title = "Webhook Changed",
+                Content = "Using " .. option[1]
+            })
         end
-        StatusParagraph:Set({
-            Title = "Webhook Changed",
-            Content = "Using " .. option[1]
-        })
-    end
-})
-
--- Export mode dropdown
-local ExportModeDropdown = MainTab:CreateDropdown({
-    Name = "Export Mode",
-    Options = {"Standard Export", "Nightbound Export"},
-    CurrentOption = {"Standard Export"},
-    MultipleOptions = false,
-    Flag = "ExportMode",
-    Callback = function(option)
-        StatusParagraph:Set({
-            Title = "Mode Changed",
-            Content = "Selected: " .. option[1]
-        })
-    end
-})
-
--- Webhook mode dropdown
-local WebhookModeDropdown = MainTab:CreateDropdown({
-    Name = "Webhook Mode",
-    Options = {"Auto Upload", "Notification Only", "Disabled"},
-    CurrentOption = {"Auto Upload"},
-    MultipleOptions = false,
-    Flag = "WebhookMode",
-    Callback = function(option)
-        StatusParagraph:Set({
-            Title = "Webhook Mode",
-            Content = option[1] .. " selected"
-        })
-    end
-})
-
--- Model name input (for standard export)
-local ModelNameInput = MainTab:CreateInput({
-    Name = "Model Name",
-    PlaceholderText = "Enter model name in workspace",
-    RemoveTextAfterFocusLost = false,
-    Callback = function(text)
-        -- Store the model name
-    end
-})
-
--- Nightbound dropdown
-local NightboundDropdown = MainTab:CreateDropdown({
-    Name = "Select Nightbound",
-    Options = {
-        "Nightbound Flare",
-        "Nightbound Shockbane",
-        "Nightbound Voidshackle", 
-        "Nightbound Shademirror",
-        "Nightbound Dreadcoil",
-        "Nightbound Wraith",
-        "Nightbound Echo",
-        "Nightbound Pyreblast",
-        "Nightbound Vapormaw"
-    },
-    CurrentOption = {"Nightbound Wraith"},
-    MultipleOptions = false,
-    Flag = "NightboundSelection",
-    Callback = function(option)
-        StatusParagraph:Set({
-            Title = "Selected",
-            Content = option[1] .. " selected"
-        })
-    end
-})
-
--- Main save button
-local SaveButton = MainTab:CreateButton({
-    Name = "💾 Save Model",
-    Callback = function()
-        local exportMode = ExportModeDropdown.CurrentOption[1]
-        local webhookMode = WebhookModeDropdown.CurrentOption[1]
-        
-        StatusParagraph:Set({
-            Title = "Processing",
-            Content = "Starting " .. exportMode .. "..."
-        })
-        
-        task.spawn(function()
-            local success, message, fileSize
+    })
+    
+    -- Export mode dropdown
+    local ExportModeDropdown = MainTab:CreateDropdown({
+        Name = "Export Mode",
+        Options = {"Standard Export", "Nightbound Export"},
+        CurrentOption = {"Standard Export"},
+        MultipleOptions = false,
+        Flag = "ExportMode",
+        Callback = function(option)
+            StatusParagraph:Set({
+                Title = "Mode Changed",
+                Content = "Selected: " .. option[1]
+            })
+        end
+    })
+    
+    -- Webhook mode dropdown
+    local WebhookModeDropdown = MainTab:CreateDropdown({
+        Name = "Webhook Mode",
+        Options = {"Auto Upload", "Notification Only", "Disabled"},
+        CurrentOption = {"Auto Upload"},
+        MultipleOptions = false,
+        Flag = "WebhookMode",
+        Callback = function(option)
+            StatusParagraph:Set({
+                Title = "Webhook Mode",
+                Content = option[1] .. " selected"
+            })
+        end
+    })
+    
+    -- Model name input (for standard export)
+    local ModelNameInput = MainTab:CreateInput({
+        Name = "Model Name",
+        PlaceholderText = "Enter model name in workspace",
+        RemoveTextAfterFocusLost = false,
+        Callback = function(text)
+            -- Store the model name
+        end
+    })
+    
+    -- Nightbound dropdown
+    local NightboundDropdown = MainTab:CreateDropdown({
+        Name = "Select Nightbound",
+        Options = {
+            "Nightbound Flare",
+            "Nightbound Shockbane",
+            "Nightbound Voidshackle", 
+            "Nightbound Shademirror",
+            "Nightbound Dreadcoil",
+            "Nightbound Wraith",
+            "Nightbound Echo",
+            "Nightbound Pyreblast",
+            "Nightbound Vapormaw"
+        },
+        CurrentOption = {"Nightbound Wraith"},
+        MultipleOptions = false,
+        Flag = "NightboundSelection",
+        Callback = function(option)
+            StatusParagraph:Set({
+                Title = "Selected",
+                Content = option[1] .. " selected"
+            })
+        end
+    })
+    
+    -- Main save button
+    MainTab:CreateButton({
+        Name = "💾 Save Model",
+        Callback = function()
+            local exportMode = ExportModeDropdown.CurrentOption[1]
+            local webhookMode = WebhookModeDropdown.CurrentOption[1]
             
-            if exportMode == "Standard Export" then
-                local modelName = ModelNameInput.Value
-                if modelName == "" then
-                    StatusParagraph:Set({
-                        Title = "Error",
-                        Content = "Please enter a model name"
-                    })
-                    return
+            StatusParagraph:Set({
+                Title = "Processing",
+                Content = "Starting " .. exportMode .. "..."
+            })
+            
+            task.spawn(function()
+                local success, message, fileSize
+                
+                if exportMode == "Standard Export" then
+                    local modelName = ModelNameInput.Value
+                    if modelName == "" then
+                        StatusParagraph:Set({
+                            Title = "Error",
+                            Content = "Please enter a model name"
+                        })
+                        return
+                    end
+                    
+                    success, message, fileSize = standardExport(modelName, webhookMode)
+                else -- Nightbound Export
+                    local npcName = NightboundDropdown.CurrentOption[1]
+                    success, message, fileSize = nightboundExport(npcName, webhookMode)
                 end
                 
-                success, message, fileSize = standardExport(modelName, webhookMode)
-            else -- Nightbound Export
-                local npcName = NightboundDropdown.CurrentOption[1]
-                success, message, fileSize = nightboundExport(npcName, webhookMode)
-            end
+                if success then
+                    StatusParagraph:Set({
+                        Title = "✅ Success",
+                        Content = message .. "\nSize: " .. fileSize .. " KB"
+                    })
+                    
+                    Rayfield:Notify({
+                        Title = "Export Complete",
+                        Content = "Model saved successfully!",
+                        Duration = 5
+                    })
+                else
+                    StatusParagraph:Set({
+                        Title = "❌ Error",
+                        Content = message
+                    })
+                    
+                    Rayfield:Notify({
+                        Title = "Export Failed",
+                        Content = message,
+                        Duration = 5
+                    })
+                end
+            end)
+        end
+    })
+    
+    -- Test webhook button
+    MainTab:CreateButton({
+        Name = "Test Webhook",
+        Callback = function()
+            StatusParagraph:Set({
+                Title = "Testing",
+                Content = "Sending test webhook..."
+            })
+            
+            local data = {
+                fileName = "test.webhook",
+                fileSizeKB = 0,
+                fileExtension = "test",
+                exportMode = "Webhook Test",
+                processingTime = 0,
+                executor = identifyexecutor and identifyexecutor() or "Unknown"
+            }
+            
+            local success = sendWebhookNotification(data)
             
             if success then
                 StatusParagraph:Set({
                     Title = "✅ Success",
-                    Content = message .. "\nSize: " .. fileSize .. " KB"
-                })
-                
-                Rayfield:Notify({
-                    Title = "Export Complete",
-                    Content = "Model saved successfully!",
-                    Duration = 5
+                    Content = "Webhook test sent!"
                 })
             else
                 StatusParagraph:Set({
-                    Title = "❌ Error",
-                    Content = message
-                })
-                
-                Rayfield:Notify({
-                    Title = "Export Failed",
-                    Content = message,
-                    Duration = 5
+                    Title = "❌ Failed",
+                    Content = "Webhook test failed"
                 })
             end
-        end)
-    end
-})
-
--- Test webhook button
-local TestWebhookButton = MainTab:CreateButton({
-    Name = "Test Webhook",
-    Callback = function()
-        StatusParagraph:Set({
-            Title = "Testing",
-            Content = "Sending test webhook..."
-        })
-        
-        local data = {
-            fileName = "test.webhook",
-            fileSizeKB = 0,
-            fileExtension = "test",
-            exportMode = "Webhook Test",
-            processingTime = 0,
-            executor = identifyexecutor and identifyexecutor() or "Unknown"
-        }
-        
-        local success = sendWebhookNotification(data)
-        
-        if success then
-            StatusParagraph:Set({
-                Title = "✅ Success",
-                Content = "Webhook test sent!"
-            })
-        else
-            StatusParagraph:Set({
-                Title = "❌ Failed",
-                Content = "Webhook test failed"
-            })
         end
-    end
-})
-
--- Quick save all nightbounds button
-local QuickSaveButton = MainTab:CreateButton({
-    Name = "Quick Save All Nightbounds",
-    Callback = function()
-        StatusParagraph:Set({
-            Title = "Starting",
-            Content = "Saving all Nightbounds..."
-        })
-        
-        task.spawn(function()
-            local nightbounds = {
-                "Nightbound Flare", "Nightbound Shockbane", "Nightbound Voidshackle",
-                "Nightbound Shademirror", "Nightbound Dreadcoil", "Nightbound Wraith",
-                "Nightbound Echo", "Nightbound Pyreblast", "Nightbound Vapormaw"
-            }
+    })
+    
+    -- Quick save all nightbounds button
+    MainTab:CreateButton({
+        Name = "Quick Save All Nightbounds",
+        Callback = function()
+            StatusParagraph:Set({
+                Title = "Starting",
+                Content = "Saving all Nightbounds..."
+            })
             
-            local savedCount = 0
-            local failedCount = 0
-            
-            for _, npcName in ipairs(nightbounds) do
-                StatusParagraph:Set({
-                    Title = "Saving",
-                    Content = npcName .. " (" .. (savedCount + failedCount + 1) .. "/" .. #nightbounds .. ")"
-                })
+            task.spawn(function()
+                local nightbounds = {
+                    "Nightbound Flare", "Nightbound Shockbane", "Nightbound Voidshackle",
+                    "Nightbound Shademirror", "Nightbound Dreadcoil", "Nightbound Wraith",
+                    "Nightbound Echo", "Nightbound Pyreblast", "Nightbound Vapormaw"
+                }
                 
-                local success = nightboundExport(npcName, "Disabled")
+                local savedCount = 0
+                local failedCount = 0
                 
-                if success then
-                    savedCount = savedCount + 1
-                else
-                    failedCount = failedCount + 1
+                for _, npcName in ipairs(nightbounds) do
+                    StatusParagraph:Set({
+                        Title = "Saving",
+                        Content = npcName .. " (" .. (savedCount + failedCount + 1) .. "/" .. #nightbounds .. ")"
+                    })
+                    
+                    local success = nightboundExport(npcName, "Disabled")
+                    
+                    if success then
+                        savedCount = savedCount + 1
+                    else
+                        failedCount = failedCount + 1
+                    end
+                    
+                    task.wait(1)
                 end
                 
-                task.wait(1)
-            end
-            
+                StatusParagraph:Set({
+                    Title = "✅ Complete",
+                    Content = "Saved " .. savedCount .. " of " .. #nightbounds .. " Nightbounds"
+                })
+            end)
+        end
+    })
+    
+    -- Settings
+    SettingsTab:CreateToggle({
+        Name = "Script Preservation",
+        CurrentValue = true,
+        Flag = "ScriptPreservation",
+        Callback = function(value)
+            -- Toggle script preservation
+        end
+    })
+    
+    SettingsTab:CreateToggle({
+        Name = "Security Filtering",
+        CurrentValue = true,
+        Flag = "SecurityFilter",
+        Callback = function(value)
+            -- Toggle security filtering
+        end
+    })
+    
+    SettingsTab:CreateDropdown({
+        Name = "File Format",
+        Options = {"RBXM", "RBXMX"},
+        CurrentOption = {"RBXM"},
+        MultipleOptions = false,
+        Flag = "FileFormat",
+        Callback = function(option)
             StatusParagraph:Set({
-                Title = "✅ Complete",
-                Content = "Saved " .. savedCount .. " of " .. #nightbounds .. " Nightbounds"
+                Title = "Format Changed",
+                Content = "Using " .. option[1] .. " format"
             })
-        end)
-    end
-})
+        end
+    })
+end
 
--- Settings
-local ScriptPreservationToggle = SettingsTab:CreateToggle({
-    Name = "Script Preservation",
-    CurrentValue = true,
-    Flag = "ScriptPreservation",
-    Callback = function(value)
-        -- Toggle script preservation
-    end
-})
-
-local SecurityFilterToggle = SettingsTab:CreateToggle({
-    Name = "Security Filtering",
-    CurrentValue = true,
-    Flag = "SecurityFilter",
-    Callback = function(value)
-        -- Toggle security filtering
-    end
-})
-
-local FileFormatDropdown = SettingsTab:CreateDropdown({
-    Name = "File Format",
-    Options = {"RBXM", "RBXMX"},
-    CurrentOption = {"RBXM"},
-    MultipleOptions = false,
-    Flag = "FileFormat",
-    Callback = function(option)
-        StatusParagraph:Set({
-            Title = "Format Changed",
-            Content = "Using " .. option[1] .. " format"
-        })
-    end
-})
+-- Initialize the UI
+initializeUI()
 
 print("[Universal Model Saver] Loaded successfully!")
 print("Webhooks: MAIN & TEST available")
