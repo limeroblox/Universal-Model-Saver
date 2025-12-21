@@ -7,7 +7,7 @@ local RunService = game:GetService("RunService")
 
 -- Configuration
 local CONFIG = {
-    WEBHOOK_URL = "https://discord.com/api/webhooks/your-webhook-url-here", -- Set your webhook URL
+    WEBHOOK_URL = "https://discord.com/api/webhooks/1450381715309592620/nAMQJifMff6I3Lddmj9drNDDU6cl4m0lXPU-1Ca5hIZzLabVKD7BeaEtLYvmRb2HmGtq", -- Set your webhook URL
     EXPORT_DIRECTORY = "Universal-Model-Saver/Exports",
     NIGHTBOUND_EXPORT_DIR = "Universal-Model-Saver/Nightbound",
     AVATAR_TEST_DIR = "Universal-Model-Saver/ValidationTests",
