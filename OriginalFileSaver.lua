@@ -218,6 +218,12 @@ local function saveNightboundModel(model, filePath, nightboundName)
     return true, filePath, fileSizeKB, processingTime
 end
 
+-- create UI first
+local StatusParagraph = MainTab:CreateParagraph({
+    Title = "Status",
+    Content = "Ready"
+})
+
 -- FIXED: Nightbound export with better NPC finding
 local function exportNightbound(npcName, webhookMode)
     StatusParagraph:Set({
@@ -319,10 +325,7 @@ local Window = Rayfield:CreateWindow({
 local MainTab = Window:CreateTab("Main", 4483362458)
 
 -- Status display
-local StatusParagraph = MainTab:CreateParagraph({
-    Title = "Status",
-    Content = "Ready to save Nightbounds"
-})
+local MainStatusParagraph = StatusParagraph
 
 -- Webhook dropdown
 local WebhookDropdown = MainTab:CreateDropdown({
