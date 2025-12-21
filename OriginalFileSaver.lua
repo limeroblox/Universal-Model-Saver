@@ -277,9 +277,9 @@ local function nightboundExport(npcName, webhookMode)
     return true, filePath, fileSizeKB
 end
 
-local Rayfeild = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local window = Rayfeild:CreateWindow({
+local window = Rayfield:CreateWindow({
     Name = "Universal Model Saver",
     LoadingTitle = "Loading Assets",
     LoadingSubtitle = "made with <3 by Haxel",
