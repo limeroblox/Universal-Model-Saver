@@ -122,6 +122,7 @@ local function getSaveInstance()
 end
 
 -- FIXED: Save model function that saves ONLY the specified model
+-- FIXED: Save model function that forces saveinstance to save ONLY the model
 local function saveNightboundModel(model, filePath, nightboundName)
     local saveFunc = getSaveInstance()
     if not saveFunc then
@@ -129,66 +130,101 @@ local function saveNightboundModel(model, filePath, nightboundName)
     end
 
     local startTime = os.time()
-
+    
     -- Ensure export directory exists
     local folderPath = "NightboundExports"
     if not isfolder(folderPath) then
         makefolder(folderPath)
     end
-
+    
     -- Delete old file if exists
     if isfile(filePath) then
         delfile(filePath)
     end
-
-    -- Clone and prepare model (ensure everything is archivable)
+    
+    -- Clone and isolate the model
     local clone = model:Clone()
     
-    -- Set archivable property on everything
+    -- Create a NEW workspace to isolate the model completely
+    local tempWorkspace = Instance.new("Model")
+    tempWorkspace.Name = "TempIsolation"
+    
+    -- Parent the clone to the temp workspace
+    clone.Parent = tempWorkspace
+    
+    -- Ensure everything is archivable
+    tempWorkspace.Archivable = true
     clone.Archivable = true
     for _, desc in ipairs(clone:GetDescendants()) do
         pcall(function() 
             desc.Archivable = true 
         end)
     end
-
-    -- Try different saveinstance methods to find what works
+    
     local success = false
     local errMsg = ""
     
-    -- Method 1: Try with Objects table (most reliable for saving single model)
+    -- METHOD 1: Most specific - save ONLY the temp workspace with clone
     local ok1, err1 = pcall(function()
         saveFunc({
-            Objects = {clone},
-            FileName = filePath:match("([^/\\]+)$") or nightboundName .. ".rbxm"
+            Objects = {tempWorkspace},  -- Save ONLY the isolated workspace
+            FileName = filePath:match("([^/\\]+)$") or nightboundName .. ".rbxm",
+            NoPlayers = true,
+            Filter = {
+                Workspace = false,  -- Don't save the actual workspace
+                Lighting = false,
+                SoundService = false,
+                ReplicatedStorage = false,
+                ServerStorage = false,
+                StarterPack = false,
+                StarterGui = false,
+                StarterPlayer = false
+            }
         })
     end)
     
     if ok1 then
         success = true
     else
-        -- Method 2: Try direct save (some saveinstance versions work this way)
+        -- METHOD 2: Try saving JUST the clone with filtering
         local ok2, err2 = pcall(function()
-            -- Create a temporary folder with just the model
-            local tempModel = Instance.new("Model")
-            tempModel.Name = nightboundName
-            clone.Parent = tempModel
-            saveFunc(tempModel, filePath)
-            tempModel:Destroy()
+            saveFunc({
+                Objects = {clone},  -- Save just the clone
+                FileName = filePath:match("([^/\\]+)$") or nightboundName .. ".rbxm"
+            })
         end)
         
         if ok2 then
             success = true
         else
-            -- Method 3: Try the simplest approach
+            -- METHOD 3: Try the oldest method - force save of just this object
             local ok3, err3 = pcall(function()
-                saveFunc(clone, filePath)
+                -- Create a table with ONLY this object
+                local saveTable = {}
+                saveTable[clone] = true
+                
+                -- Save using a custom filter
+                saveFunc({
+                    Objects = {clone},
+                    FileName = nightboundName .. ".rbxm",
+                    Filter = function(obj)
+                        -- Only save objects that are descendants of our clone
+                        local current = obj
+                        while current ~= nil do
+                            if current == clone then
+                                return true
+                            end
+                            current = current.Parent
+                        end
+                        return false
+                    end
+                })
             end)
             
             if ok3 then
                 success = true
             else
-                -- Method 4: Try Universal Syn SaveInstance format
+                -- METHOD 4: Universal Syn SaveInstance method
                 local ok4, err4 = pcall(function()
                     saveFunc({
                         Object = clone,
@@ -197,64 +233,114 @@ local function saveNightboundModel(model, filePath, nightboundName)
                         Decompile = false,
                         IgnoreNotArchivable = true,
                         ShowStatus = false,
-                        Path = "NightboundExports"
+                        Path = folderPath,
+                        Filter = {
+                            Descendants = {clone},  -- Only save descendants of clone
+                            InstanceList = {clone}   -- Only this instance
+                        }
                     })
                 end)
                 
                 if ok4 then
                     success = true
                 else
-                    errMsg = "All save methods failed:\n1: " .. tostring(err1) .. 
-                             "\n2: " .. tostring(err2) .. 
-                             "\n3: " .. tostring(err3) ..
-                             "\n4: " .. tostring(err4)
+                    errMsg = "All save methods failed"
                 end
             end
         end
     end
-
+    
+    -- Clean up
     clone:Destroy()
-
+    tempWorkspace:Destroy()
+    
     if not success then
         return false, "Save failed: " .. errMsg
     end
-
-    -- Wait for file to exist with timeout
+    
+    -- Wait for file to exist
     local fileExists = false
     local fileData = nil
     
-    for i = 1, 20 do  -- 10 second timeout
+    for i = 1, 30 do
         task.wait(0.5)
         if isfile(filePath) then
             fileData = readfile(filePath)
-            if fileData and #fileData > 100 then  -- Ensure file has content
+            if fileData and #fileData > 100 then
+                fileExists = true
+                break
+            end
+        end
+        
+        -- Also check without folder prefix (some saveinstance versions do this)
+        local altPath = nightboundName .. ".rbxm"
+        if isfile(altPath) then
+            -- Move it to the correct folder
+            fileData = readfile(altPath)
+            writefile(filePath, fileData)
+            delfile(altPath)
+            if fileData and #fileData > 100 then
                 fileExists = true
                 break
             end
         end
     end
-
+    
     if not fileExists then
-        -- Try alternative path
-        local altPath = "NightboundExports/" .. nightboundName .. ".rbxm"
-        if isfile(altPath) then
-            filePath = altPath
-            fileData = readfile(filePath)
-            if fileData and #fileData > 100 then
-                fileExists = true
-            end
-        end
+        return false, "File was not created. Check if saveinstance has proper permissions."
     end
-
-    if not fileExists then
-        return false, "File was not created or is empty. Check if saveinstance is working."
-    end
-
+    
     local processingTime = os.time() - startTime
     local fileSizeKB = math.floor(#fileData / 1024 * 100) / 100
-
+    
     return true, filePath, fileSizeKB, processingTime
 end
+
+-- ALTERNATIVE: Use WriteFile method if saveinstance still saves everything
+local function saveNightboundModelAlternative(model, filePath, nightboundName)
+    -- This method manually creates the file if saveinstance fails
+    
+    -- First try the normal method
+    local success, result, fileSizeKB, processingTime = saveNightboundModel(model, filePath, nightboundName)
+    
+    if success then
+        return success, result, fileSizeKB, processingTime
+    end
+    
+    -- If normal method fails, try writing the model data directly
+    print("[Warning] saveinstance failed, trying alternative method...")
+    
+    -- Clone the model
+    local clone = model:Clone()
+    clone.Name = nightboundName
+    
+    -- Create a temporary place in memory
+    local tempData = nil
+    
+    -- Try to serialize the model
+    local ok, err = pcall(function()
+        -- Some executors have model serialization functions
+        if writefile and typeof(clone) == "Instance" then
+            -- This is executor-specific - might work on some executors
+            local modelString = tostring(clone)  -- Some executors can convert to string
+            if modelString and #modelString > 100 then
+                tempData = modelString
+            end
+        end
+    end)
+    
+    clone:Destroy()
+    
+    if tempData and #tempData > 100 then
+        -- Write the data to file
+        writefile(filePath, tempData)
+        local fileSizeKB = math.floor(#tempData / 1024 * 100) / 100
+        return true, filePath, fileSizeKB, 1
+    end
+    
+    return false, "All save methods failed. Try using a different executor with working saveinstance."
+end
+
 -- First, define setStatus function BEFORE exportNightbound
 local function setStatus(title, content)
     if StatusParagraph and StatusParagraph.Set then
