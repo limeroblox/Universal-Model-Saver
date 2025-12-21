@@ -52,61 +52,55 @@ end
 
 -- Function to send webhook with file attachment
 -- Function to send webhook with file attachment
+-- Function to send webhook with file attachment
 local function sendWebhookWithFile(filePath, data, webhookUrl)
     if not isfile(filePath) then
         return false, "File does not exist"
     end
-
+    
     local fileData = readfile(filePath)
-    if not fileData or #fileData == 0 then
+    if #fileData == 0 then
         return false, "File is empty"
     end
-
+    
     local requestFunc = getRequestFunction()
     if not requestFunc then
         return false, "No HTTP request function available"
     end
-
-    data = data or {}
-    data.fileName = data.fileName or "file.bin"
-
-    local boundary = "----WebKitFormBoundary" .. math.random(100000, 999999)
+    
+    local boundary = "----WebKitFormBoundary" .. tostring(math.random(100000, 999999))
     local payload = buildWebhookFormat(data)
-
-    local body = table.concat({
-        "--" .. boundary,
-        'Content-Disposition: form-data; name="payload_json"',
-        "Content-Type: application/json",
-        "",
-        HttpService:JSONEncode(payload),
-
-        "--" .. boundary,
-        string.format(
-            'Content-Disposition: form-data; name="file"; filename="%s"',
-            data.fileName
-        ),
-        "Content-Type: application/octet-stream",
-        "",
-        fileData,
-
-        "--" .. boundary .. "--",
-        ""
-    }, "\r\n")
-
+    
+    -- Build the multipart form data using string.format for cleaner code
+    local jsonPart = string.format(
+        '--%s\r\nContent-Disposition: form-data; name="payload_json"\r\nContent-Type: application/json\r\n\r\n%s\r\n',
+        boundary,
+        HttpService:JSONEncode(payload)
+    )
+    
+    local fileHeader = string.format(
+        '--%s\r\nContent-Disposition: form-data; name="file"; filename="%s"\r\nContent-Type: application/octet-stream\r\n\r\n',
+        boundary,
+        data.fileName
+    )
+    
+    local fileEnding = string.format('\r\n--%s--\r\n', boundary)
+    
+    -- Combine all parts
+    local body = jsonPart .. fileHeader .. fileData .. fileEnding
+    
     local success, response = pcall(function()
         return requestFunc({
             Url = webhookUrl or currentWebhook,
             Method = "POST",
             Headers = {
-                ["Content-Type"] = "multipart/form-data; boundary=" .. boundary,
-                ["Content-Length"] = tostring(#body)
+                ["Content-Type"] = "multipart/form-data; boundary=" .. boundary
             },
             Body = body
         })
     end)
-
-    return success and response and response.Success,
-           success and response or "Request failed"
+    
+    return success and response and response.Success, success and response or "Request failed"
 end
 
 -- Function to send webhook notification only (no file)
