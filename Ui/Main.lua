@@ -1,6 +1,6 @@
-local Rayfeild = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local window = Rayfeild:CreateWindow({
+local Window = Rayfield:CreateWindow({
     Name = "Universal Model Saver",
     LoadingTitle = "Loading Assets",
     LoadingSubtitle = "made with <3 by Haxel",
