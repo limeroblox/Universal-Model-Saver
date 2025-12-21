@@ -255,6 +255,15 @@ local function saveNightboundModel(model, filePath, nightboundName)
 
     return true, filePath, fileSizeKB, processingTime
 end
+-- First, define setStatus function BEFORE exportNightbound
+local function setStatus(title, content)
+    if StatusParagraph and StatusParagraph.Set then
+        StatusParagraph:Set({
+            Title = title,
+            Content = content
+        })
+    end
+end
 
 -- FIXED: Nightbound export with proper file path
 local function exportNightbound(npcName, webhookMode)
