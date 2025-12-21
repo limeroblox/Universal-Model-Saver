@@ -103,237 +103,203 @@ local function sendWebhookNotification(data)
     return success and response and response.Success
 end
 
--- Get SynSaveInstance function properly
+-- Get saveinstance function - SIMPLIFIED
 local function getSaveInstance()
-    -- First check for native saveinstance
-    local nativeSave = saveinstance or save_instance or (syn and syn.saveinstance)
+    if saveinstance then return saveinstance end
+    if syn and syn.saveinstance then return syn.saveinstance end
+    if save_instance then return save_instance end
     
-    if nativeSave then
-        -- Wrap native saveinstance to work with SynSaveInstance options
-        return function(options)
-            if type(options) == "table" then
-                if options.Object then
-                    -- Object mode for single model
-                    return nativeSave(options.Object, options.FilePath or "model.rbxm")
-                elseif options.ExtraInstances then
-                    -- ExtraInstances mode
-                    return nativeSave({Objects = options.ExtraInstances, FileName = options.FilePath or "model.rbxm"})
-                else
-                    -- Regular save
-                    return nativeSave(options)
-                end
-            else
-                return nativeSave(options)
-            end
-        end
-    end
-    
-    -- Load Universal Syn SaveInstance
-    print("[Nightbound Saver] Loading Universal Syn SaveInstance...")
-    
-    local success, synSaveFunc = pcall(function()
-        -- Load SynSaveInstance from the official repo
-        local RepoURL = "https://raw.githubusercontent.com/luau/SynSaveInstance/main/"
-        local saveinstanceCode = game:HttpGet(RepoURL .. "saveinstance.luau", true)
-        
-        -- Load the module
-        local loadedModule = loadstring(saveinstanceCode, "SynSaveInstance")()
-        
-        if type(loadedModule) == "function" then
-            return loadedModule
-        elseif type(loadedModule) == "table" and loadedModule.saveinstance then
-            return loadedModule.saveinstance
-        end
-        
-        return nil
-    end)
-    
-    if success and type(synSaveFunc) == "function" then
-        print("[Nightbound Saver] SynSaveInstance loaded successfully")
-        return synSaveFunc
-    end
-    
-    -- Try alternative loading method
-    local success2, synSaveFunc2 = pcall(function()
+    -- Try to load Universal Syn SaveInstance
+    local success, loaded = pcall(function()
         return loadstring(game:HttpGet("https://raw.githubusercontent.com/luau/SynSaveInstance/main/saveinstance.luau", true))()
     end)
     
-    if success2 and type(synSaveFunc2) == "function" then
-        print("[Nightbound Saver] SynSaveInstance loaded via alternative method")
-        return synSaveFunc2
+    if success and type(loaded) == "function" then
+        return loaded
     end
     
-    warn("[Nightbound Saver] Could not load saveinstance function")
     return nil
 end
 
--- FIXED: Save model function that saves ONLY the specified model
--- FIXED: Save model function that forces saveinstance to save ONLY the model
--- FIXED: Proper SynSaveInstance usage for saving ONLY the Nightbound NPC
-local function saveNightboundModel(model, filePath, nightboundName)
+-- FIXED: Save model function with better error handling
+local function saveNightboundModel(model, fileName, nightboundName)
     local saveFunc = getSaveInstance()
     if not saveFunc then
         return false, "No saveinstance function found"
     end
 
     local startTime = os.time()
-    
+
     -- Ensure export directory exists
-    local folderPath = "NightboundExports"
-    if not isfolder(folderPath) then
-        makefolder(folderPath)
+    local exportDir = "NightboundExports"
+    if not isfolder(exportDir) then
+        makefolder(exportDir)
     end
-    
+
+    -- Full file path
+    local filePath = exportDir .. "/" .. fileName
+
     -- Delete old file if exists
     if isfile(filePath) then
         delfile(filePath)
     end
-    
-    -- Clone the model
+
+    -- Prepare the model properly
     local clone = model:Clone()
-    clone.Name = nightboundName
-    
-    -- METHOD 1: Using ExtraInstances with invalid mode (RECOMMENDED for single model)
-    local success = false
-    local errMsg = ""
-    
-    local ok1, err1 = pcall(function()
-        -- According to docs: "If used with any invalid mode (like 'invalidmode') it will only save these instances"
-        saveFunc({
-            ExtraInstances = {clone},  -- Only save this instance
-            mode = "invalidmode",      -- Invalid mode = only save ExtraInstances
-            FilePath = nightboundName, -- File name without extension
-            IsModel = true,            -- Save as model file (.rbxm)
-            ShowStatus = false,        -- Don't show status messages
-            IgnoreNotArchivable = true -- Save even if not archivable
-        })
-    end)
-    
-    if ok1 then
-        success = true
-        print("[SynSaveInstance] Saved using ExtraInstances + invalidmode")
-    else
-        -- METHOD 2: Using Object parameter (for Model files)
-        local ok2, err2 = pcall(function()
-            saveFunc({
-                Object = clone,        -- Specific object to save
-                FilePath = nightboundName,
-                IsModel = true,        -- Save as .rbxm file
-                ShowStatus = false,
-                IgnoreNotArchivable = true,
-                mode = "full",         -- Use "full" mode with Object parameter
-                Decompile = false,     -- Don't decompile scripts
-                RemovePlayerCharacters = true,  -- Don't save player characters
-                IgnoreList = {         -- Explicitly ignore common service folders
-                    "CoreGui",
-                    "CorePackages", 
-                    "Players",
-                    "Lighting",
-                    "SoundService",
-                    "ReplicatedStorage",
-                    "ServerStorage"
-                }
-            })
-        end)
-        
-        if ok2 then
-            success = true
-            print("[SynSaveInstance] Saved using Object parameter")
-        else
-            -- METHOD 3: Simple array of instances (legacy compatibility)
-            local ok3, err3 = pcall(function()
-                -- According to docs: If Parameter_1 is a table filled with instances, 
-                -- it will be treated as ExtraInstances with invalid mode
-                saveFunc({clone}, {
-                    FilePath = nightboundName,
-                    IsModel = true,
-                    ShowStatus = false
-                })
-            end)
-            
-            if ok3 then
-                success = true
-                print("[SynSaveInstance] Saved using array syntax")
-            else
-                -- METHOD 4: Using the Object as first parameter
-                local ok4, err4 = pcall(function()
-                    -- Some versions expect: saveinstance(model, options)
-                    saveFunc(clone, {
-                        FilePath = nightboundName,
-                        IsModel = true,
-                        ShowStatus = false,
-                        mode = "full"
-                    })
-                end)
-                
-                if ok4 then
-                    success = true
-                    print("[SynSaveInstance] Saved using model-first syntax")
-                else
-                    errMsg = "All SynSaveInstance methods failed:\n1: " .. tostring(err1) .. 
-                             "\n2: " .. tostring(err2) .. 
-                             "\n3: " .. tostring(err3) ..
-                             "\n4: " .. tostring(err4)
-                end
-            end
+
+    -- Ensure everything is archivable
+    clone.Archivable = true
+    for _, descendant in ipairs(clone:GetDescendants()) do
+        pcall(function() descendant.Archivable = true end)
+    end
+
+    -- Remove scripts for security
+    for _, s in ipairs(clone:GetDescendants()) do
+        if s:IsA("Script") then
+            s:Destroy()
         end
     end
-    
-    clone:Destroy()
-    
-    if not success then
-        return false, "Save failed: " .. errMsg
+
+    -- Save using proper folder + filename
+    local success = false
+    local attempts = {
+        function()
+            saveFunc({Objects = {clone}, FileName = fileName, Path = exportDir})
+        end,
+        function()
+            -- fallback: just save to folder manually
+            local fullPath = exportDir .. "/" .. fileName
+            saveFunc(clone, fullPath)
+        end
+    }
+
+    for i, attempt in ipairs(attempts) do
+        local ok, err = pcall(attempt)
+        if ok then
+            success = true
+            print("[Nightbound Saver] Save successful with attempt #" .. i)
+            break
+        else
+            warn("[Nightbound Saver] Attempt #" .. i .. " failed:", err)
+        end
     end
-    
-    -- SynSaveInstance might save with .rbxm or .rbxmx extension
-    -- Check for both
-    local foundFilePath = nil
-    local extensionsToCheck = {".rbxm", ".rbxmx"}
-    
+
+    clone:Destroy()
+
+    if not success then
+        return false, "All save attempts failed"
+    end
+
+    -- Wait for file to be written
+    local fileExists = false
+    local fileData = nil
+
     for i = 1, 30 do
         task.wait(0.5)
-        
-        for _, ext in ipairs(extensionsToCheck) do
-            local possiblePath = folderPath .. "/" .. nightboundName .. ext
-            
-            -- First check in our target folder
-            if isfile(possiblePath) then
-                local fileData = readfile(possiblePath)
-                if fileData and #fileData > 100 then
-                    foundFilePath = possiblePath
-                    break
-                end
-            end
-            
-            -- Also check in current directory (SynSaveInstance might save there)
-            local rootPath = nightboundName .. ext
-            if isfile(rootPath) then
-                local fileData = readfile(rootPath)
-                if fileData and #fileData > 100 then
-                    -- Move to our folder
-                    writefile(possiblePath, fileData)
-                    delfile(rootPath)
-                    foundFilePath = possiblePath
-                    break
-                end
+        if isfile(filePath) then
+            fileData = readfile(filePath)
+            if #fileData > 100 then
+                fileExists = true
+                break
             end
         end
-        
-        if foundFilePath then
-            break
-        end
     end
-    
-    if not foundFilePath then
-        return false, "File was not created. Check if SynSaveInstance has write permissions."
+
+    if not fileExists then
+        return false, "File was not created or is empty"
     end
-    
-    local fileData = readfile(foundFilePath)
+
     local processingTime = os.time() - startTime
     local fileSizeKB = math.floor(#fileData / 1024 * 100) / 100
-    
-    return true, foundFilePath, fileSizeKB, processingTime
+
+    return true, filePath, fileSizeKB, processingTime
 end
+
+-- Safe status setter
+local function setStatus(title, content)
+    if StatusParagraph and StatusParagraph.Set then
+        StatusParagraph:Set({
+            Title = title,
+            Content = content
+        })
+    end
+end
+
+-- Fixed Nightbound export
+local function exportNightbound(npcName, webhookMode)
+    setStatus("Searching", "Looking for " .. npcName .. "...")
+
+    -- Search for Nightbound NPC
+    local npc = nil
+    local npcFolder = workspace:FindFirstChild("NPCs")
+
+    if npcFolder then
+        -- Check all possible locations
+        local foldersToCheck = {"Hostile", "Custom", "Boss", "Nightbound", "Enemies"}
+
+        for _, folderName in ipairs(foldersToCheck) do
+            local folder = npcFolder:FindFirstChild(folderName)
+            if folder then
+                npc = folder:FindFirstChild(npcName)
+                if npc then
+                    print("[Nightbound Saver] Found in folder: " .. folderName)
+                    break
+                end
+            end
+        end
+
+        -- If not found in folders, search entire NPCs folder
+        if not npc then
+            npc = npcFolder:FindFirstChild(npcName)
+        end
+    end
+
+    -- Also check workspace directly
+    if not npc then
+        npc = workspace:FindFirstChild(npcName)
+    end
+
+    if not npc then
+        return false, npcName .. " not found in workspace"
+    end
+
+    setStatus("Found", "Preparing " .. npcName .. " for export...")
+
+    -- Create filename and path
+    local safeName = npcName:gsub("%s+", "")
+    local filePath = "NightboundExports/" .. safeName .. ".rbxm"
+
+    local success, result, fileSizeKB, processingTime = saveNightboundModel(npc, filePath, npcName)
+
+    if not success then
+        return false, "Save failed: " .. tostring(result)
+    end
+
+    -- Handle webhook
+    if webhookMode ~= "Disabled" then
+        local data = {
+            fileName = safeName .. ".rbxm",
+            fileSizeKB = fileSizeKB,
+            fileExtension = "rbxm",
+            nightboundName = npcName,
+            exportMode = "Nightbound Export",
+            processingTime = processingTime,
+            executor = getExecutorName()
+        }
+
+        if webhookMode == "Auto Upload" then
+            local uploadSuccess = sendWebhookWithFile(result, data)
+            if not uploadSuccess then
+                sendWebhookNotification(data)
+            end
+        else
+            sendWebhookNotification(data)
+        end
+    end
+
+    return true, "Saved " .. npcName .. " to " .. result, fileSizeKB
+end
+
 
 -- Initialize UI
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
