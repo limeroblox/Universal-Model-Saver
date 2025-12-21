@@ -122,60 +122,57 @@ local function getSaveInstance()
 end
 
 -- FIXED: Save model function with better error handling
-local function saveNightboundModel(model, filePath, nightboundName)
+local function saveNightboundModel(model, fileName, nightboundName)
     local saveFunc = getSaveInstance()
     if not saveFunc then
         return false, "No saveinstance function found"
     end
-    
+
     local startTime = os.time()
-    
+
     -- Ensure export directory exists
     local exportDir = "NightboundExports"
     if not isfolder(exportDir) then
         makefolder(exportDir)
     end
-    
+
+    -- Full file path
+    local filePath = exportDir .. "/" .. fileName
+
     -- Delete old file if exists
     if isfile(filePath) then
         delfile(filePath)
     end
-    
+
     -- Prepare the model properly
     local clone = model:Clone()
-    
+
     -- Ensure everything is archivable
     clone.Archivable = true
     for _, descendant in ipairs(clone:GetDescendants()) do
-        pcall(function()
-            descendant.Archivable = true
-        end)
+        pcall(function() descendant.Archivable = true end)
     end
-    
-    -- Remove scripts (security filtering)
-    for _, script in ipairs(clone:GetDescendants()) do
-        if script:IsA("Script") then
-            script:Destroy()
+
+    -- Remove scripts for security
+    for _, s in ipairs(clone:GetDescendants()) do
+        if s:IsA("Script") then
+            s:Destroy()
         end
     end
-    
-    -- Save using multiple methods for compatibility
+
+    -- Save using proper folder + filename
     local success = false
     local attempts = {
-        function() 
-            -- Method 1: Standard saveinstance
-            saveFunc(clone, filePath)
+        function()
+            saveFunc({Objects = {clone}, FileName = fileName, Path = exportDir})
         end,
-        function() 
-            -- Method 2: With options table
-            saveFunc({Objects = {clone}, FileName = filePath})
-        end,
-        function() 
-            -- Method 3: Simple save
-            saveFunc(filePath)
+        function()
+            -- fallback: just save to folder manually
+            local fullPath = exportDir .. "/" .. fileName
+            saveFunc(clone, fullPath)
         end
     }
-    
+
     for i, attempt in ipairs(attempts) do
         local ok, err = pcall(attempt)
         if ok then
@@ -186,35 +183,35 @@ local function saveNightboundModel(model, filePath, nightboundName)
             warn("[Nightbound Saver] Attempt #" .. i .. " failed:", err)
         end
     end
-    
+
     clone:Destroy()
-    
+
     if not success then
         return false, "All save attempts failed"
     end
-    
+
     -- Wait for file to be written
     local fileExists = false
     local fileData = nil
-    
-    for i = 1, 30 do  -- Wait up to 15 seconds
+
+    for i = 1, 30 do
         task.wait(0.5)
         if isfile(filePath) then
             fileData = readfile(filePath)
-            if #fileData > 100 then  -- Ensure file has content
+            if #fileData > 100 then
                 fileExists = true
                 break
             end
         end
     end
-    
+
     if not fileExists then
         return false, "File was not created or is empty"
     end
-    
+
     local processingTime = os.time() - startTime
     local fileSizeKB = math.floor(#fileData / 1024 * 100) / 100
-    
+
     return true, filePath, fileSizeKB, processingTime
 end
 
